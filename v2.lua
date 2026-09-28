@@ -1,26 +1,19 @@
 --==================================================
--- INSTANT TOKEN COLLECTOR V5.2
--- STRUCTURE:
--- Workspace.Systems.ActiveVariantTokenSpawns
--- Workspace.Systems.ActiveCollectableObjects
--- Workspace.Systems.CollectableObjects
+-- INSTANT TOKEN COLLECTOR V5.3
+-- SPAWN ONLY VERSION
 --
--- FEATURES:
--- - Variant Token monitor
--- - Active Collectable monitor
--- - CollectableObjects monitor
--- - Position change monitor
--- - Instant TP
--- - Anti-AFK
--- - Hide / Show
--- - Draggable UI
--- - Debug logs
+-- CHỈ TP KHI:
+-- 1. Object mới xuất hiện
+-- 2. Object mới được thêm vào folder
+-- 3. Variant token xuất hiện
+-- 4. Collectable mới xuất hiện
+--
+-- KHÔNG TP LIÊN TỤC VÀO OBJECT CŨ
 --==================================================
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local VirtualUser = game:GetService("VirtualUser")
-local RunService = game:GetService("RunService")
 
 local Player = Players.LocalPlayer
 
@@ -28,19 +21,44 @@ local Player = Players.LocalPlayer
 -- CONFIG
 --==================================================
 
-local CONFIG = {
-    Enabled = true,
+local Enabled = true
+local AntiAFK = true
 
-    TeleportDelay = 0.08,
-    CollectDistance = 5,
+local TeleportDelay = 0.08
+local SpawnDelay = 0.03
 
-    ScanInterval = 0.15,
-    PositionCheckInterval = 0.05,
+--==================================================
+-- SAFE FIND
+--==================================================
 
-    AntiAFK = true,
+local function Find(parent, name, timeout)
 
-    Debug = true
-}
+    if not parent then
+        return nil
+    end
+
+    local obj = parent:FindFirstChild(name)
+
+    if obj then
+        return obj
+    end
+
+    local start = os.clock()
+
+    while os.clock() - start < (timeout or 3) do
+
+        obj = parent:FindFirstChild(name)
+
+        if obj then
+            return obj
+        end
+
+        task.wait(0.1)
+
+    end
+
+    return nil
+end
 
 --==================================================
 -- CHARACTER
@@ -49,289 +67,512 @@ local CONFIG = {
 local Character
 local Root
 
-local function updateCharacter()
-    Character = Player.Character or Player.CharacterAdded:Wait()
-    Root = Character:WaitForChild("HumanoidRootPart", 10)
+local function UpdateCharacter()
+
+    Character = Player.Character
+
+    if not Character then
+        Character = Player.CharacterAdded:Wait()
+    end
+
+    Root =
+        Character:FindFirstChild(
+            "HumanoidRootPart"
+        )
+
+    if not Root then
+
+        Root =
+            Character:WaitForChild(
+                "HumanoidRootPart",
+                5
+            )
+
+    end
+
 end
 
-updateCharacter()
+UpdateCharacter()
 
 Player.CharacterAdded:Connect(function(char)
+
     Character = char
-    Root = char:WaitForChild("HumanoidRootPart", 10)
+
+    Root =
+        char:WaitForChild(
+            "HumanoidRootPart",
+            5
+        )
+
 end)
 
 --==================================================
 -- SYSTEMS
 --==================================================
 
-local Systems = workspace:WaitForChild("Systems")
+local Systems =
+    Find(
+        workspace,
+        "Systems",
+        5
+    )
+
+if not Systems then
+
+    warn(
+        "[V5.3] Workspace.Systems NOT FOUND"
+    )
+
+    return
+end
+
+--==================================================
+-- FOLDERS
+--==================================================
 
 local ActiveVariantTokenSpawns =
-    Systems:WaitForChild("ActiveVariantTokenSpawns")
+    Find(
+        Systems,
+        "ActiveVariantTokenSpawns",
+        3
+    )
 
 local ActiveCollectableObjects =
-    Systems:WaitForChild("ActiveCollectableObjects")
+    Find(
+        Systems,
+        "ActiveCollectableObjects",
+        3
+    )
 
 local CollectableObjects =
-    Systems:WaitForChild("CollectableObjects")
+    Find(
+        Systems,
+        "CollectableObjects",
+        3
+    )
 
---==================================================
--- DEBUG
---==================================================
+print("======================================")
+print("INSTANT TOKEN COLLECTOR V5.3")
+print("======================================")
 
-local function log(...)
-    if CONFIG.Debug then
-        print("[V5.2]", ...)
-    end
-end
+print(
+    "Variant:",
+    ActiveVariantTokenSpawns
+        and ActiveVariantTokenSpawns:GetFullName()
+        or "NOT FOUND"
+)
 
-local function warnLog(...)
-    warn("[V5.2]", ...)
-end
+print(
+    "Active:",
+    ActiveCollectableObjects
+        and ActiveCollectableObjects:GetFullName()
+        or "NOT FOUND"
+)
+
+print(
+    "Collectable:",
+    CollectableObjects
+        and CollectableObjects:GetFullName()
+        or "NOT FOUND"
+)
+
+print("======================================")
 
 --==================================================
 -- UI
 --==================================================
 
-local oldGui =
-    Player:WaitForChild("PlayerGui"):FindFirstChild("InstantTokenCollectorV52")
+local PlayerGui =
+    Player:WaitForChild("PlayerGui")
 
-if oldGui then
-    oldGui:Destroy()
+local OldGui =
+    PlayerGui:FindFirstChild(
+        "TokenCollectorV53"
+    )
+
+if OldGui then
+    OldGui:Destroy()
 end
 
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "InstantTokenCollectorV52"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = Player.PlayerGui
+local Gui =
+    Instance.new("ScreenGui")
 
-local Main = Instance.new("Frame")
-Main.Name = "Main"
-Main.Size = UDim2.new(0, 310, 0, 245)
-Main.Position = UDim2.new(0.5, -155, 0.5, -122)
-Main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+Gui.Name =
+    "TokenCollectorV53"
+
+Gui.ResetOnSpawn = false
+Gui.Parent = PlayerGui
+
+--==================================================
+-- MAIN
+--==================================================
+
+local Main =
+    Instance.new("Frame")
+
+Main.Size =
+    UDim2.new(0,300,0,220)
+
+Main.Position =
+    UDim2.new(
+        0.5,
+        -150,
+        0.5,
+        -110
+    )
+
+Main.BackgroundColor3 =
+    Color3.fromRGB(25,25,30)
+
 Main.BorderSizePixel = 0
-Main.Parent = ScreenGui
+Main.Parent = Gui
 
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 10)
-Corner.Parent = Main
+local MainCorner =
+    Instance.new("UICorner")
+
+MainCorner.CornerRadius =
+    UDim.new(0,10)
+
+MainCorner.Parent = Main
 
 --==================================================
 -- TITLE
 --==================================================
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -45, 0, 38)
-Title.Position = UDim2.new(0, 12, 0, 0)
+local Title =
+    Instance.new("TextLabel")
+
+Title.Size =
+    UDim2.new(1,-45,0,35)
+
+Title.Position =
+    UDim2.new(0,10,0,3)
+
 Title.BackgroundTransparency = 1
-Title.Text = "INSTANT TOKEN COLLECTOR V5.2"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+Title.Text =
+    "TOKEN COLLECTOR V5.3"
+
+Title.TextColor3 =
+    Color3.fromRGB(255,255,255)
+
 Title.TextSize = 15
 Title.Font = Enum.Font.GothamBold
-Title.TextXAlignment = Enum.TextXAlignment.Left
+
+Title.TextXAlignment =
+    Enum.TextXAlignment.Left
+
 Title.Parent = Main
 
 --==================================================
--- HIDE BUTTON
+-- HIDE
 --==================================================
 
-local HideButton = Instance.new("TextButton")
-HideButton.Size = UDim2.new(0, 32, 0, 28)
-HideButton.Position = UDim2.new(1, -38, 0, 5)
-HideButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-HideButton.Text = "-"
-HideButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-HideButton.TextSize = 18
-HideButton.Font = Enum.Font.GothamBold
-HideButton.Parent = Main
+local Hide =
+    Instance.new("TextButton")
 
-local HideCorner = Instance.new("UICorner")
-HideCorner.CornerRadius = UDim.new(0, 6)
-HideCorner.Parent = HideButton
+Hide.Size =
+    UDim2.new(0,30,0,28)
+
+Hide.Position =
+    UDim2.new(1,-35,0,5)
+
+Hide.Text = "-"
+
+Hide.TextSize = 18
+
+Hide.TextColor3 =
+    Color3.fromRGB(255,255,255)
+
+Hide.BackgroundColor3 =
+    Color3.fromRGB(50,50,60)
+
+Hide.Parent = Main
 
 --==================================================
 -- STATUS
 --==================================================
 
-local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, -24, 0, 30)
-Status.Position = UDim2.new(0, 12, 0, 45)
+local Status =
+    Instance.new("TextLabel")
+
+Status.Size =
+    UDim2.new(1,-20,0,28)
+
+Status.Position =
+    UDim2.new(0,10,0,42)
+
 Status.BackgroundTransparency = 1
-Status.Text = "Status: RUNNING"
-Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-Status.TextSize = 14
-Status.Font = Enum.Font.GothamBold
-Status.TextXAlignment = Enum.TextXAlignment.Left
+
+Status.Text =
+    "Status: WAITING FOR SPAWN"
+
+Status.TextColor3 =
+    Color3.fromRGB(255,220,100)
+
+Status.TextSize = 13
+
+Status.Font =
+    Enum.Font.GothamBold
+
+Status.TextXAlignment =
+    Enum.TextXAlignment.Left
+
 Status.Parent = Main
 
-local Current = Instance.new("TextLabel")
-Current.Size = UDim2.new(1, -24, 0, 25)
-Current.Position = UDim2.new(0, 12, 0, 75)
-Current.BackgroundTransparency = 1
-Current.Text = "Target: None"
-Current.TextColor3 = Color3.fromRGB(220, 220, 220)
-Current.TextSize = 13
-Current.Font = Enum.Font.Gotham
-Current.TextXAlignment = Enum.TextXAlignment.Left
-Current.Parent = Main
+--==================================================
+-- TARGET
+--==================================================
 
-local FolderStatus = Instance.new("TextLabel")
-FolderStatus.Size = UDim2.new(1, -24, 0, 55)
-FolderStatus.Position = UDim2.new(0, 12, 0, 103)
-FolderStatus.BackgroundTransparency = 1
-FolderStatus.Text =
-    "Variant: 0\n" ..
-    "Active: 0\n" ..
-    "Collectable: 0"
+local Target =
+    Instance.new("TextLabel")
 
-FolderStatus.TextColor3 = Color3.fromRGB(180, 180, 190)
-FolderStatus.TextSize = 12
-FolderStatus.Font = Enum.Font.Gotham
-FolderStatus.TextXAlignment = Enum.TextXAlignment.Left
-FolderStatus.Parent = Main
+Target.Size =
+    UDim2.new(1,-20,0,42)
+
+Target.Position =
+    UDim2.new(0,10,0,72)
+
+Target.BackgroundTransparency = 1
+
+Target.Text =
+    "Target: None"
+
+Target.TextColor3 =
+    Color3.fromRGB(210,210,210)
+
+Target.TextSize = 12
+
+Target.Font =
+    Enum.Font.Gotham
+
+Target.TextWrapped = true
+
+Target.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+Target.Parent = Main
+
+--==================================================
+-- COUNTER
+--==================================================
+
+local Counter =
+    Instance.new("TextLabel")
+
+Counter.Size =
+    UDim2.new(1,-20,0,30)
+
+Counter.Position =
+    UDim2.new(0,10,0,112)
+
+Counter.BackgroundTransparency = 1
+
+Counter.Text =
+    "Waiting..."
+
+Counter.TextColor3 =
+    Color3.fromRGB(170,170,180)
+
+Counter.TextSize = 11
+
+Counter.Font =
+    Enum.Font.Gotham
+
+Counter.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+Counter.Parent = Main
 
 --==================================================
 -- TOGGLE
 --==================================================
 
-local ToggleButton = Instance.new("TextButton")
-ToggleButton.Size = UDim2.new(1, -24, 0, 35)
-ToggleButton.Position = UDim2.new(0, 12, 1, -47)
-ToggleButton.BackgroundColor3 = Color3.fromRGB(40, 130, 65)
-ToggleButton.Text = "COLLECTOR: ON"
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.TextSize = 13
-ToggleButton.Font = Enum.Font.GothamBold
-ToggleButton.Parent = Main
+local Toggle =
+    Instance.new("TextButton")
 
-local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(0, 7)
-ToggleCorner.Parent = ToggleButton
+Toggle.Size =
+    UDim2.new(1,-20,0,35)
 
---==================================================
--- HIDDEN BUTTON
---==================================================
+Toggle.Position =
+    UDim2.new(0,10,1,-45)
 
-local ShowButton = Instance.new("TextButton")
-ShowButton.Size = UDim2.new(0, 55, 0, 35)
-ShowButton.Position = UDim2.new(0, 15, 0.5, -17)
-ShowButton.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-ShowButton.Text = "TOKEN"
-ShowButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ShowButton.TextSize = 11
-ShowButton.Font = Enum.Font.GothamBold
-ShowButton.Visible = false
-ShowButton.Parent = ScreenGui
+Toggle.Text =
+    "COLLECTOR: ON"
 
-local ShowCorner = Instance.new("UICorner")
-ShowCorner.CornerRadius = UDim.new(0, 8)
-ShowCorner.Parent = ShowButton
+Toggle.TextColor3 =
+    Color3.fromRGB(255,255,255)
+
+Toggle.TextSize = 13
+
+Toggle.Font =
+    Enum.Font.GothamBold
+
+Toggle.BackgroundColor3 =
+    Color3.fromRGB(40,130,65)
+
+Toggle.Parent = Main
 
 --==================================================
--- DRAG SYSTEM
+-- SHOW
 --==================================================
 
-local dragging = false
-local dragStart
-local startPosition
+local Show =
+    Instance.new("TextButton")
 
-local function updateDrag(input)
-    local delta = input.Position - dragStart
+Show.Size =
+    UDim2.new(0,70,0,35)
 
-    Main.Position = UDim2.new(
-        startPosition.X.Scale,
-        startPosition.X.Offset + delta.X,
-        startPosition.Y.Scale,
-        startPosition.Y.Offset + delta.Y
-    )
-end
+Show.Position =
+    UDim2.new(0,10,0.5,-17)
+
+Show.Text = "TOKEN"
+
+Show.TextColor3 =
+    Color3.fromRGB(255,255,255)
+
+Show.TextSize = 11
+
+Show.Font =
+    Enum.Font.GothamBold
+
+Show.BackgroundColor3 =
+    Color3.fromRGB(25,25,30)
+
+Show.Visible = false
+
+Show.Parent = Gui
+
+Hide.MouseButton1Click:Connect(function()
+
+    Main.Visible = false
+    Show.Visible = true
+
+end)
+
+Show.MouseButton1Click:Connect(function()
+
+    Main.Visible = true
+    Show.Visible = false
+
+end)
+
+--==================================================
+-- DRAG
+--==================================================
+
+local Dragging = false
+local DragStart
+local StartPosition
 
 Title.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
 
-        dragging = true
-        dragStart = input.Position
-        startPosition = Main.Position
+    if
+        input.UserInputType ==
+            Enum.UserInputType.MouseButton1
+        or
+        input.UserInputType ==
+            Enum.UserInputType.Touch
+    then
+
+        Dragging = true
+        DragStart = input.Position
+        StartPosition = Main.Position
+
     end
+
 end)
 
 Title.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
 
-        dragging = false
+    if
+        input.UserInputType ==
+            Enum.UserInputType.MouseButton1
+        or
+        input.UserInputType ==
+            Enum.UserInputType.Touch
+    then
+
+        Dragging = false
+
     end
+
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-    if dragging then
-        if input.UserInputType == Enum.UserInputType.MouseMovement
-            or input.UserInputType == Enum.UserInputType.Touch then
 
-            updateDrag(input)
-        end
+    if not Dragging then
+        return
     end
+
+    if
+        input.UserInputType ==
+            Enum.UserInputType.MouseMovement
+        or
+        input.UserInputType ==
+            Enum.UserInputType.Touch
+    then
+
+        local Delta =
+            input.Position - DragStart
+
+        Main.Position =
+            UDim2.new(
+                StartPosition.X.Scale,
+                StartPosition.X.Offset + Delta.X,
+                StartPosition.Y.Scale,
+                StartPosition.Y.Offset + Delta.Y
+            )
+
+    end
+
 end)
 
 --==================================================
--- HIDE / SHOW
+-- TOGGLE
 --==================================================
 
-HideButton.MouseButton1Click:Connect(function()
-    Main.Visible = false
-    ShowButton.Visible = true
-end)
+Toggle.MouseButton1Click:Connect(function()
 
-ShowButton.MouseButton1Click:Connect(function()
-    Main.Visible = true
-    ShowButton.Visible = false
-end)
+    Enabled = not Enabled
 
---==================================================
--- ENABLE / DISABLE
---==================================================
+    if Enabled then
 
-ToggleButton.MouseButton1Click:Connect(function()
+        Toggle.Text =
+            "COLLECTOR: ON"
 
-    CONFIG.Enabled = not CONFIG.Enabled
+        Toggle.BackgroundColor3 =
+            Color3.fromRGB(40,130,65)
 
-    if CONFIG.Enabled then
+        Status.Text =
+            "Status: WAITING FOR SPAWN"
 
-        ToggleButton.Text = "COLLECTOR: ON"
-        ToggleButton.BackgroundColor3 =
-            Color3.fromRGB(40, 130, 65)
-
-        Status.Text = "Status: RUNNING"
         Status.TextColor3 =
-            Color3.fromRGB(100, 255, 100)
-
-        log("Collector ENABLED")
+            Color3.fromRGB(255,220,100)
 
     else
 
-        ToggleButton.Text = "COLLECTOR: OFF"
-        ToggleButton.BackgroundColor3 =
-            Color3.fromRGB(130, 45, 45)
+        Toggle.Text =
+            "COLLECTOR: OFF"
 
-        Status.Text = "Status: PAUSED"
+        Toggle.BackgroundColor3 =
+            Color3.fromRGB(130,45,45)
+
+        Status.Text =
+            "Status: PAUSED"
+
         Status.TextColor3 =
-            Color3.fromRGB(255, 100, 100)
+            Color3.fromRGB(255,100,100)
 
-        Current.Text = "Target: None"
-
-        log("Collector DISABLED")
     end
+
 end)
 
 --==================================================
--- GET POSITION
+-- POSITION
 --==================================================
 
-local function getPosition(obj)
+local function GetPosition(obj)
 
     if not obj then
         return nil
@@ -348,557 +589,299 @@ local function getPosition(obj)
         end
 
         local part =
-            obj:FindFirstChildWhichIsA("BasePart", true)
+            obj:FindFirstChildWhichIsA(
+                "BasePart",
+                true
+            )
 
         if part then
             return part.Position
         end
+
     end
 
     return nil
 end
 
 --==================================================
--- VALID OBJECT
+-- PROCESSED OBJECTS
 --==================================================
 
-local function isValidObject(obj)
+local Processed = {}
+
+--==================================================
+-- COLLECT NEW OBJECT
+--==================================================
+
+local function CollectNewObject(
+    obj,
+    folderName
+)
+
+    if not Enabled then
+        return
+    end
 
     if not obj then
-        return false
+        return
     end
 
     if not obj.Parent then
-        return false
-    end
-
-    local position = getPosition(obj)
-
-    if not position then
-        return false
-    end
-
-    return true
-end
-
---==================================================
--- COLLECT OBJECT
---==================================================
-
-local collecting = false
-local lastTarget = nil
-local lastTargetPosition = nil
-
-local function collectObject(obj, folderName)
-
-    if not CONFIG.Enabled then
         return
     end
 
-    if collecting then
+    -- Đã xử lý object này rồi
+    if Processed[obj] then
         return
     end
 
-    if not isValidObject(obj) then
+    local Position =
+        GetPosition(obj)
+
+    if not Position then
+
+        -- Model có thể chưa load part
+        task.wait(0.05)
+
+        Position =
+            GetPosition(obj)
+
+        if not Position then
+            return
+        end
+    end
+
+    Processed[obj] = true
+
+    if not Root
+        or not Root.Parent then
+
+        UpdateCharacter()
+
+    end
+
+    if not Root then
         return
     end
 
-    if not Root or not Root.Parent then
-        updateCharacter()
-    end
-
-    local position = getPosition(obj)
-
-    if not position then
-        return
-    end
-
-    collecting = true
-    lastTarget = obj
-    lastTargetPosition = position
-
-    Current.Text =
-        "Target: " ..
-        tostring(obj.Name) ..
-        " [" ..
-        tostring(folderName) ..
-        "]"
-
-    log(
-        "TP ->",
-        obj.Name,
-        "| Folder:",
-        folderName,
-        "| Position:",
-        tostring(position)
+    print(
+        "[V5.3] NEW SPAWN:",
+        obj:GetFullName()
     )
+
+    print(
+        "[V5.3] POSITION:",
+        tostring(Position)
+    )
+
+    Target.Text =
+        "Target: " ..
+        obj.Name ..
+        "\n" ..
+        folderName
+
+    Status.Text =
+        "Status: TELEPORTING"
+
+    Status.TextColor3 =
+        Color3.fromRGB(100,255,100)
 
     pcall(function()
 
         Root.CFrame =
-            CFrame.new(position + Vector3.new(0, 2, 0))
+            CFrame.new(
+                Position +
+                Vector3.new(0,2,0)
+            )
 
     end)
 
-    task.wait(CONFIG.TeleportDelay)
+    task.wait(TeleportDelay)
 
-    pcall(function()
+    Status.Text =
+        "Status: WAITING FOR SPAWN"
 
-        if Root and isValidObject(obj) then
+    Status.TextColor3 =
+        Color3.fromRGB(255,220,100)
 
-            local newPosition =
-                getPosition(obj)
-
-            if newPosition then
-
-                Root.CFrame =
-                    CFrame.new(
-                        newPosition +
-                        Vector3.new(0, 2, 0)
-                    )
-            end
-        end
-
-    end)
-
-    task.wait(0.05)
-
-    collecting = false
 end
 
 --==================================================
--- GET OBJECTS
+-- MONITOR NEW CHILD
 --==================================================
 
-local function getObjects(folder)
-
-    local result = {}
+local function MonitorFolder(
+    folder,
+    folderName
+)
 
     if not folder then
-        return result
-    end
 
-    for _, obj in ipairs(folder:GetChildren()) do
-
-        if isValidObject(obj) then
-            table.insert(result, obj)
-        end
-
-    end
-
-    return result
-end
-
---==================================================
--- PRIORITY SCAN
---==================================================
-
-local function scanAndCollect()
-
-    if not CONFIG.Enabled then
-        return
-    end
-
-    --==============================================
-    -- PRIORITY 1
-    -- ActiveVariantTokenSpawns
-    --==============================================
-
-    local variants =
-        getObjects(ActiveVariantTokenSpawns)
-
-    if #variants > 0 then
-
-        for _, obj in ipairs(variants) do
-
-            if CONFIG.Enabled then
-                collectObject(
-                    obj,
-                    "ActiveVariantTokenSpawns"
-                )
-            end
-
-        end
-    end
-
-    --==============================================
-    -- PRIORITY 2
-    -- ActiveCollectableObjects
-    --==============================================
-
-    local activeCollectables =
-        getObjects(ActiveCollectableObjects)
-
-    if #activeCollectables > 0 then
-
-        for _, obj in ipairs(activeCollectables) do
-
-            if CONFIG.Enabled then
-                collectObject(
-                    obj,
-                    "ActiveCollectableObjects"
-                )
-            end
-
-        end
-    end
-
-    --==============================================
-    -- PRIORITY 3
-    -- CollectableObjects
-    --==============================================
-
-    local collectables =
-        getObjects(CollectableObjects)
-
-    if #collectables > 0 then
-
-        for _, obj in ipairs(collectables) do
-
-            if CONFIG.Enabled then
-                collectObject(
-                    obj,
-                    "CollectableObjects"
-                )
-            end
-
-        end
-    end
-end
-
---==================================================
--- UPDATE COUNTER
---==================================================
-
-local function updateCounters()
-
-    local variantCount =
-        #getObjects(ActiveVariantTokenSpawns)
-
-    local activeCount =
-        #getObjects(ActiveCollectableObjects)
-
-    local collectableCount =
-        #getObjects(CollectableObjects)
-
-    FolderStatus.Text =
-        "Variant: " .. variantCount ..
-        "\nActive: " .. activeCount ..
-        "\nCollectable: " .. collectableCount
-end
-
---==================================================
--- FOLDER DEBUG
---==================================================
-
-local function printFolder(folder, folderName)
-
-    print(
-        "========== " ..
-        folderName ..
-        " =========="
-    )
-
-    local objects = folder:GetChildren()
-
-    if #objects == 0 then
-        print("EMPTY")
-        return
-    end
-
-    for _, obj in ipairs(objects) do
-
-        local pos = getPosition(obj)
-
-        if pos then
-
-            print(
-                obj.ClassName,
-                obj:GetFullName(),
-                "| Position:",
-                tostring(pos)
-            )
-
-        else
-
-            print(
-                obj.ClassName,
-                obj:GetFullName()
-            )
-        end
-    end
-end
-
--- Initial debug
-printFolder(
-    ActiveVariantTokenSpawns,
-    "ActiveVariantTokenSpawns"
-)
-
-printFolder(
-    ActiveCollectableObjects,
-    "ActiveCollectableObjects"
-)
-
-printFolder(
-    CollectableObjects,
-    "CollectableObjects"
-)
-
---==================================================
--- CHILD ADDED MONITOR
---==================================================
-
-local function setupChildMonitor(folder, folderName)
-
-    folder.ChildAdded:Connect(function(obj)
-
-        log(
-            "NEW OBJECT:",
-            obj.Name,
-            "| Folder:",
+        warn(
+            "[V5.3] Folder missing:",
             folderName
         )
 
-        task.wait(0.03)
+        return
+    end
 
-        if CONFIG.Enabled then
-            collectObject(
+    print(
+        "[V5.3] Monitoring:",
+        folder:GetFullName()
+    )
+
+    -- QUAN TRỌNG:
+    -- Không xử lý object đã có sẵn.
+    -- Chỉ ChildAdded từ thời điểm script chạy.
+
+    folder.ChildAdded:Connect(
+        function(obj)
+
+            print(
+                "[V5.3] >>> SPAWN DETECTED <<<"
+            )
+
+            print(
+                "[V5.3]",
+                folderName,
+                obj.Name
+            )
+
+            task.wait(SpawnDelay)
+
+            CollectNewObject(
                 obj,
                 folderName
             )
+
         end
-    end)
+    )
 
-    folder.ChildRemoved:Connect(function(obj)
-
-        log(
-            "REMOVED:",
-            obj.Name,
-            "| Folder:",
-            folderName
-        )
-    end)
 end
 
-setupChildMonitor(
+--==================================================
+-- START MONITORS
+--==================================================
+
+MonitorFolder(
     ActiveVariantTokenSpawns,
     "ActiveVariantTokenSpawns"
 )
 
-setupChildMonitor(
+MonitorFolder(
     ActiveCollectableObjects,
     "ActiveCollectableObjects"
 )
 
-setupChildMonitor(
+MonitorFolder(
     CollectableObjects,
     "CollectableObjects"
 )
 
 --==================================================
--- POSITION MONITOR
+-- REMOVE CACHE
 --==================================================
 
-local positionCache = {}
+local function SetupRemoveMonitor(folder)
 
-task.spawn(function()
-
-    while task.wait(CONFIG.PositionCheckInterval) do
-
-        if CONFIG.Enabled then
-
-            local folders = {
-                {
-                    ActiveVariantTokenSpawns,
-                    "ActiveVariantTokenSpawns"
-                },
-
-                {
-                    ActiveCollectableObjects,
-                    "ActiveCollectableObjects"
-                },
-
-                {
-                    CollectableObjects,
-                    "CollectableObjects"
-                }
-            }
-
-            for _, data in ipairs(folders) do
-
-                local folder = data[1]
-                local folderName = data[2]
-
-                for _, obj in ipairs(folder:GetChildren()) do
-
-                    local position = getPosition(obj)
-
-                    if position then
-
-                        local oldPosition =
-                            positionCache[obj]
-
-                        if oldPosition then
-
-                            local distance =
-                                (position - oldPosition).Magnitude
-
-                            if distance > 1 then
-
-                                log(
-                                    "POSITION CHANGED:",
-                                    obj.Name,
-                                    "| Folder:",
-                                    folderName,
-                                    "| Distance:",
-                                    distance
-                                )
-
-                                task.spawn(function()
-
-                                    collectObject(
-                                        obj,
-                                        folderName
-                                    )
-
-                                end)
-                            end
-                        end
-
-                        positionCache[obj] =
-                            position
-                    end
-                end
-            end
-        end
+    if not folder then
+        return
     end
-end)
 
---==================================================
--- MAIN SCANNER
---==================================================
+    folder.ChildRemoved:Connect(
+        function(obj)
 
-task.spawn(function()
+            Processed[obj] = nil
 
-    while task.wait(CONFIG.ScanInterval) do
-
-        if CONFIG.Enabled then
-
-            updateCounters()
-            scanAndCollect()
+            print(
+                "[V5.3] Removed:",
+                obj.Name
+            )
 
         end
-    end
-end)
+    )
 
---==================================================
--- CLEAN POSITION CACHE
---==================================================
+end
 
-task.spawn(function()
+SetupRemoveMonitor(
+    ActiveVariantTokenSpawns
+)
 
-    while task.wait(2) do
+SetupRemoveMonitor(
+    ActiveCollectableObjects
+)
 
-        for obj in pairs(positionCache) do
-
-            if not obj
-                or not obj.Parent then
-
-                positionCache[obj] = nil
-            end
-        end
-
-    end
-end)
+SetupRemoveMonitor(
+    CollectableObjects
+)
 
 --==================================================
 -- ANTI AFK
 --==================================================
 
-if CONFIG.AntiAFK then
+Player.Idled:Connect(function()
 
-    Player.Idled:Connect(function()
+    if not AntiAFK then
+        return
+    end
 
-        if not CONFIG.AntiAFK then
-            return
-        end
+    pcall(function()
 
-        log("Anti-AFK triggered")
+        VirtualUser:CaptureController()
 
-        pcall(function()
-
-            VirtualUser:CaptureController()
-
-            VirtualUser:ClickButton2(
-                Vector2.new(
-                    math.random(200, 800),
-                    math.random(200, 600)
-                )
+        VirtualUser:ClickButton2(
+            Vector2.new(
+                math.random(300,700),
+                math.random(200,500)
             )
-
-        end)
+        )
 
     end)
 
-end
+    print(
+        "[V5.3] Anti-AFK"
+    )
+
+end)
 
 --==================================================
--- ANTI-AFK BACKUP
+-- CLEAN CACHE
 --==================================================
 
 task.spawn(function()
 
-    while task.wait(45) do
+    while task.wait(5) do
 
-        if CONFIG.AntiAFK
-            and CONFIG.Enabled then
+        for obj in pairs(Processed) do
 
-            pcall(function()
+            if not obj
+                or not obj.Parent then
 
-                VirtualUser:CaptureController()
+                Processed[obj] = nil
 
-                VirtualUser:ClickButton2(
-                    Vector2.new(
-                        math.random(100, 900),
-                        math.random(100, 600)
-                    )
-                )
+            end
 
-            end)
-
-            log("Anti-AFK backup pulse")
         end
 
     end
+
 end)
 
 --==================================================
--- START
+-- READY
 --==================================================
 
-Status.Text = "Status: RUNNING"
+Status.Text =
+    "Status: WAITING FOR SPAWN"
+
 Status.TextColor3 =
-    Color3.fromRGB(100, 255, 100)
+    Color3.fromRGB(255,220,100)
 
-log("======================================")
-log("INSTANT TOKEN COLLECTOR V5.2 STARTED")
-log("======================================")
+Counter.Text =
+    "Existing objects ignored"
 
-log(
-    "ActiveVariantTokenSpawns:",
-    ActiveVariantTokenSpawns:GetFullName()
-)
-
-log(
-    "ActiveCollectableObjects:",
-    ActiveCollectableObjects:GetFullName()
-)
-
-log(
-    "CollectableObjects:",
-    CollectableObjects:GetFullName()
-)
-
-updateCounters()
-scanAndCollect()
+print("======================================")
+print("V5.3 READY")
+print("Existing objects will NOT be collected.")
+print("Waiting for NEW spawned objects...")
+print("======================================")
