@@ -1,14 +1,19 @@
 --==================================================
--- INSTANT TOKEN COLLECTOR V5.3
--- SPAWN ONLY VERSION
+-- INSTANT TOKEN COLLECTOR V5.4
+-- POSITION CHANGE DETECTOR
 --
--- CHỈ TP KHI:
--- 1. Object mới xuất hiện
--- 2. Object mới được thêm vào folder
--- 3. Variant token xuất hiện
--- 4. Collectable mới xuất hiện
+-- STRUCTURE:
+-- Workspace.Systems.ActiveVariantTokenSpawns
+-- Workspace.Systems.ActiveCollectableObjects
+-- Workspace.Systems.CollectableObjects
 --
--- KHÔNG TP LIÊN TỤC VÀO OBJECT CŨ
+-- LOGIC:
+-- 1. Ignore objects already existing when script starts
+-- 2. Detect NEW objects
+-- 3. Detect reused objects moving to a NEW position
+-- 4. TP ONCE per new position
+-- 5. Do NOT TP repeatedly to the same position
+-- 6. Variant has highest priority
 --==================================================
 
 local Players = game:GetService("Players")
@@ -24,8 +29,9 @@ local Player = Players.LocalPlayer
 local Enabled = true
 local AntiAFK = true
 
+local PositionThreshold = 3
 local TeleportDelay = 0.08
-local SpawnDelay = 0.03
+local CheckDelay = 0.10
 
 --==================================================
 -- SAFE FIND
@@ -45,7 +51,7 @@ local function Find(parent, name, timeout)
 
     local start = os.clock()
 
-    while os.clock() - start < (timeout or 3) do
+    while os.clock() - start < timeout do
 
         obj = parent:FindFirstChild(name)
 
@@ -54,11 +60,67 @@ local function Find(parent, name, timeout)
         end
 
         task.wait(0.1)
-
     end
 
     return nil
 end
+
+--==================================================
+-- SYSTEMS
+--==================================================
+
+local Systems = Find(
+    workspace,
+    "Systems",
+    5
+)
+
+if not Systems then
+    warn("[V5.4] Workspace.Systems NOT FOUND")
+    return
+end
+
+local VariantFolder = Find(
+    Systems,
+    "ActiveVariantTokenSpawns",
+    3
+)
+
+local ActiveFolder = Find(
+    Systems,
+    "ActiveCollectableObjects",
+    3
+)
+
+local CollectableFolder = Find(
+    Systems,
+    "CollectableObjects",
+    3
+)
+
+print("======================================")
+print("INSTANT TOKEN COLLECTOR V5.4")
+print("======================================")
+
+print(
+    "Variant:",
+    VariantFolder and VariantFolder:GetFullName()
+        or "NOT FOUND"
+)
+
+print(
+    "Active:",
+    ActiveFolder and ActiveFolder:GetFullName()
+        or "NOT FOUND"
+)
+
+print(
+    "Collectable:",
+    CollectableFolder and CollectableFolder:GetFullName()
+        or "NOT FOUND"
+)
+
+print("======================================")
 
 --==================================================
 -- CHARACTER
@@ -67,12 +129,12 @@ end
 local Character
 local Root
 
-local function UpdateCharacter()
+local function RefreshCharacter()
 
     Character = Player.Character
 
     if not Character then
-        Character = Player.CharacterAdded:Wait()
+        return false
     end
 
     Root =
@@ -80,19 +142,10 @@ local function UpdateCharacter()
             "HumanoidRootPart"
         )
 
-    if not Root then
-
-        Root =
-            Character:WaitForChild(
-                "HumanoidRootPart",
-                5
-            )
-
-    end
-
+    return Root ~= nil
 end
 
-UpdateCharacter()
+RefreshCharacter()
 
 Player.CharacterAdded:Connect(function(char)
 
@@ -103,468 +156,6 @@ Player.CharacterAdded:Connect(function(char)
             "HumanoidRootPart",
             5
         )
-
-end)
-
---==================================================
--- SYSTEMS
---==================================================
-
-local Systems =
-    Find(
-        workspace,
-        "Systems",
-        5
-    )
-
-if not Systems then
-
-    warn(
-        "[V5.3] Workspace.Systems NOT FOUND"
-    )
-
-    return
-end
-
---==================================================
--- FOLDERS
---==================================================
-
-local ActiveVariantTokenSpawns =
-    Find(
-        Systems,
-        "ActiveVariantTokenSpawns",
-        3
-    )
-
-local ActiveCollectableObjects =
-    Find(
-        Systems,
-        "ActiveCollectableObjects",
-        3
-    )
-
-local CollectableObjects =
-    Find(
-        Systems,
-        "CollectableObjects",
-        3
-    )
-
-print("======================================")
-print("INSTANT TOKEN COLLECTOR V5.3")
-print("======================================")
-
-print(
-    "Variant:",
-    ActiveVariantTokenSpawns
-        and ActiveVariantTokenSpawns:GetFullName()
-        or "NOT FOUND"
-)
-
-print(
-    "Active:",
-    ActiveCollectableObjects
-        and ActiveCollectableObjects:GetFullName()
-        or "NOT FOUND"
-)
-
-print(
-    "Collectable:",
-    CollectableObjects
-        and CollectableObjects:GetFullName()
-        or "NOT FOUND"
-)
-
-print("======================================")
-
---==================================================
--- UI
---==================================================
-
-local PlayerGui =
-    Player:WaitForChild("PlayerGui")
-
-local OldGui =
-    PlayerGui:FindFirstChild(
-        "TokenCollectorV53"
-    )
-
-if OldGui then
-    OldGui:Destroy()
-end
-
-local Gui =
-    Instance.new("ScreenGui")
-
-Gui.Name =
-    "TokenCollectorV53"
-
-Gui.ResetOnSpawn = false
-Gui.Parent = PlayerGui
-
---==================================================
--- MAIN
---==================================================
-
-local Main =
-    Instance.new("Frame")
-
-Main.Size =
-    UDim2.new(0,300,0,220)
-
-Main.Position =
-    UDim2.new(
-        0.5,
-        -150,
-        0.5,
-        -110
-    )
-
-Main.BackgroundColor3 =
-    Color3.fromRGB(25,25,30)
-
-Main.BorderSizePixel = 0
-Main.Parent = Gui
-
-local MainCorner =
-    Instance.new("UICorner")
-
-MainCorner.CornerRadius =
-    UDim.new(0,10)
-
-MainCorner.Parent = Main
-
---==================================================
--- TITLE
---==================================================
-
-local Title =
-    Instance.new("TextLabel")
-
-Title.Size =
-    UDim2.new(1,-45,0,35)
-
-Title.Position =
-    UDim2.new(0,10,0,3)
-
-Title.BackgroundTransparency = 1
-
-Title.Text =
-    "TOKEN COLLECTOR V5.3"
-
-Title.TextColor3 =
-    Color3.fromRGB(255,255,255)
-
-Title.TextSize = 15
-Title.Font = Enum.Font.GothamBold
-
-Title.TextXAlignment =
-    Enum.TextXAlignment.Left
-
-Title.Parent = Main
-
---==================================================
--- HIDE
---==================================================
-
-local Hide =
-    Instance.new("TextButton")
-
-Hide.Size =
-    UDim2.new(0,30,0,28)
-
-Hide.Position =
-    UDim2.new(1,-35,0,5)
-
-Hide.Text = "-"
-
-Hide.TextSize = 18
-
-Hide.TextColor3 =
-    Color3.fromRGB(255,255,255)
-
-Hide.BackgroundColor3 =
-    Color3.fromRGB(50,50,60)
-
-Hide.Parent = Main
-
---==================================================
--- STATUS
---==================================================
-
-local Status =
-    Instance.new("TextLabel")
-
-Status.Size =
-    UDim2.new(1,-20,0,28)
-
-Status.Position =
-    UDim2.new(0,10,0,42)
-
-Status.BackgroundTransparency = 1
-
-Status.Text =
-    "Status: WAITING FOR SPAWN"
-
-Status.TextColor3 =
-    Color3.fromRGB(255,220,100)
-
-Status.TextSize = 13
-
-Status.Font =
-    Enum.Font.GothamBold
-
-Status.TextXAlignment =
-    Enum.TextXAlignment.Left
-
-Status.Parent = Main
-
---==================================================
--- TARGET
---==================================================
-
-local Target =
-    Instance.new("TextLabel")
-
-Target.Size =
-    UDim2.new(1,-20,0,42)
-
-Target.Position =
-    UDim2.new(0,10,0,72)
-
-Target.BackgroundTransparency = 1
-
-Target.Text =
-    "Target: None"
-
-Target.TextColor3 =
-    Color3.fromRGB(210,210,210)
-
-Target.TextSize = 12
-
-Target.Font =
-    Enum.Font.Gotham
-
-Target.TextWrapped = true
-
-Target.TextXAlignment =
-    Enum.TextXAlignment.Left
-
-Target.Parent = Main
-
---==================================================
--- COUNTER
---==================================================
-
-local Counter =
-    Instance.new("TextLabel")
-
-Counter.Size =
-    UDim2.new(1,-20,0,30)
-
-Counter.Position =
-    UDim2.new(0,10,0,112)
-
-Counter.BackgroundTransparency = 1
-
-Counter.Text =
-    "Waiting..."
-
-Counter.TextColor3 =
-    Color3.fromRGB(170,170,180)
-
-Counter.TextSize = 11
-
-Counter.Font =
-    Enum.Font.Gotham
-
-Counter.TextXAlignment =
-    Enum.TextXAlignment.Left
-
-Counter.Parent = Main
-
---==================================================
--- TOGGLE
---==================================================
-
-local Toggle =
-    Instance.new("TextButton")
-
-Toggle.Size =
-    UDim2.new(1,-20,0,35)
-
-Toggle.Position =
-    UDim2.new(0,10,1,-45)
-
-Toggle.Text =
-    "COLLECTOR: ON"
-
-Toggle.TextColor3 =
-    Color3.fromRGB(255,255,255)
-
-Toggle.TextSize = 13
-
-Toggle.Font =
-    Enum.Font.GothamBold
-
-Toggle.BackgroundColor3 =
-    Color3.fromRGB(40,130,65)
-
-Toggle.Parent = Main
-
---==================================================
--- SHOW
---==================================================
-
-local Show =
-    Instance.new("TextButton")
-
-Show.Size =
-    UDim2.new(0,70,0,35)
-
-Show.Position =
-    UDim2.new(0,10,0.5,-17)
-
-Show.Text = "TOKEN"
-
-Show.TextColor3 =
-    Color3.fromRGB(255,255,255)
-
-Show.TextSize = 11
-
-Show.Font =
-    Enum.Font.GothamBold
-
-Show.BackgroundColor3 =
-    Color3.fromRGB(25,25,30)
-
-Show.Visible = false
-
-Show.Parent = Gui
-
-Hide.MouseButton1Click:Connect(function()
-
-    Main.Visible = false
-    Show.Visible = true
-
-end)
-
-Show.MouseButton1Click:Connect(function()
-
-    Main.Visible = true
-    Show.Visible = false
-
-end)
-
---==================================================
--- DRAG
---==================================================
-
-local Dragging = false
-local DragStart
-local StartPosition
-
-Title.InputBegan:Connect(function(input)
-
-    if
-        input.UserInputType ==
-            Enum.UserInputType.MouseButton1
-        or
-        input.UserInputType ==
-            Enum.UserInputType.Touch
-    then
-
-        Dragging = true
-        DragStart = input.Position
-        StartPosition = Main.Position
-
-    end
-
-end)
-
-Title.InputEnded:Connect(function(input)
-
-    if
-        input.UserInputType ==
-            Enum.UserInputType.MouseButton1
-        or
-        input.UserInputType ==
-            Enum.UserInputType.Touch
-    then
-
-        Dragging = false
-
-    end
-
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-
-    if not Dragging then
-        return
-    end
-
-    if
-        input.UserInputType ==
-            Enum.UserInputType.MouseMovement
-        or
-        input.UserInputType ==
-            Enum.UserInputType.Touch
-    then
-
-        local Delta =
-            input.Position - DragStart
-
-        Main.Position =
-            UDim2.new(
-                StartPosition.X.Scale,
-                StartPosition.X.Offset + Delta.X,
-                StartPosition.Y.Scale,
-                StartPosition.Y.Offset + Delta.Y
-            )
-
-    end
-
-end)
-
---==================================================
--- TOGGLE
---==================================================
-
-Toggle.MouseButton1Click:Connect(function()
-
-    Enabled = not Enabled
-
-    if Enabled then
-
-        Toggle.Text =
-            "COLLECTOR: ON"
-
-        Toggle.BackgroundColor3 =
-            Color3.fromRGB(40,130,65)
-
-        Status.Text =
-            "Status: WAITING FOR SPAWN"
-
-        Status.TextColor3 =
-            Color3.fromRGB(255,220,100)
-
-    else
-
-        Toggle.Text =
-            "COLLECTOR: OFF"
-
-        Toggle.BackgroundColor3 =
-            Color3.fromRGB(130,45,45)
-
-        Status.Text =
-            "Status: PAUSED"
-
-        Status.TextColor3 =
-            Color3.fromRGB(255,100,100)
-
-    end
 
 end)
 
@@ -597,161 +188,699 @@ local function GetPosition(obj)
         if part then
             return part.Position
         end
-
     end
 
     return nil
 end
 
 --==================================================
--- PROCESSED OBJECTS
+-- UI
 --==================================================
 
-local Processed = {}
+local PlayerGui =
+    Player:WaitForChild("PlayerGui")
+
+local Old =
+    PlayerGui:FindFirstChild(
+        "TokenCollectorV54"
+    )
+
+if Old then
+    Old:Destroy()
+end
+
+local Gui =
+    Instance.new("ScreenGui")
+
+Gui.Name =
+    "TokenCollectorV54"
+
+Gui.ResetOnSpawn = false
+Gui.Parent = PlayerGui
+
+local Main =
+    Instance.new("Frame")
+
+Main.Size =
+    UDim2.new(0,310,0,235)
+
+Main.Position =
+    UDim2.new(
+        0.5,
+        -155,
+        0.5,
+        -117
+    )
+
+Main.BackgroundColor3 =
+    Color3.fromRGB(25,25,30)
+
+Main.BorderSizePixel = 0
+Main.Parent = Gui
+
+local Corner =
+    Instance.new("UICorner")
+
+Corner.CornerRadius =
+    UDim.new(0,10)
+
+Corner.Parent = Main
 
 --==================================================
--- COLLECT NEW OBJECT
+-- TITLE
 --==================================================
 
-local function CollectNewObject(
-    obj,
-    folderName
-)
+local Title =
+    Instance.new("TextLabel")
 
-    if not Enabled then
+Title.Size =
+    UDim2.new(1,-45,0,35)
+
+Title.Position =
+    UDim2.new(0,10,0,3)
+
+Title.BackgroundTransparency = 1
+
+Title.Text =
+    "INSTANT TOKEN COLLECTOR V5.4"
+
+Title.TextColor3 =
+    Color3.fromRGB(255,255,255)
+
+Title.TextSize = 14
+
+Title.Font =
+    Enum.Font.GothamBold
+
+Title.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+Title.Parent = Main
+
+--==================================================
+-- HIDE
+--==================================================
+
+local Hide =
+    Instance.new("TextButton")
+
+Hide.Size =
+    UDim2.new(0,30,0,28)
+
+Hide.Position =
+    UDim2.new(1,-35,0,5)
+
+Hide.Text = "-"
+
+Hide.TextSize = 18
+
+Hide.TextColor3 =
+    Color3.fromRGB(255,255,255)
+
+Hide.BackgroundColor3 =
+    Color3.fromRGB(50,50,60)
+
+Hide.Parent = Main
+
+local Show =
+    Instance.new("TextButton")
+
+Show.Size =
+    UDim2.new(0,70,0,35)
+
+Show.Position =
+    UDim2.new(0,10,0.5,-17)
+
+Show.Text = "TOKEN"
+
+Show.TextColor3 =
+    Color3.fromRGB(255,255,255)
+
+Show.TextSize = 11
+
+Show.Font =
+    Enum.Font.GothamBold
+
+Show.BackgroundColor3 =
+    Color3.fromRGB(25,25,30)
+
+Show.Visible = false
+Show.Parent = Gui
+
+Hide.MouseButton1Click:Connect(function()
+    Main.Visible = false
+    Show.Visible = true
+end)
+
+Show.MouseButton1Click:Connect(function()
+    Main.Visible = true
+    Show.Visible = false
+end)
+
+--==================================================
+-- STATUS
+--==================================================
+
+local Status =
+    Instance.new("TextLabel")
+
+Status.Size =
+    UDim2.new(1,-20,0,30)
+
+Status.Position =
+    UDim2.new(0,10,0,43)
+
+Status.BackgroundTransparency = 1
+
+Status.Text =
+    "WAITING FOR NEW POSITION"
+
+Status.TextColor3 =
+    Color3.fromRGB(255,220,100)
+
+Status.TextSize = 13
+
+Status.Font =
+    Enum.Font.GothamBold
+
+Status.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+Status.Parent = Main
+
+--==================================================
+-- TARGET
+--==================================================
+
+local Target =
+    Instance.new("TextLabel")
+
+Target.Size =
+    UDim2.new(1,-20,0,45)
+
+Target.Position =
+    UDim2.new(0,10,0,75)
+
+Target.BackgroundTransparency = 1
+
+Target.Text =
+    "Target: None"
+
+Target.TextColor3 =
+    Color3.fromRGB(210,210,210)
+
+Target.TextSize = 12
+
+Target.Font =
+    Enum.Font.Gotham
+
+Target.TextWrapped = true
+
+Target.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+Target.Parent = Main
+
+--==================================================
+-- INFO
+--==================================================
+
+local Info =
+    Instance.new("TextLabel")
+
+Info.Size =
+    UDim2.new(1,-20,0,30)
+
+Info.Position =
+    UDim2.new(0,10,0,122)
+
+Info.BackgroundTransparency = 1
+
+Info.Text =
+    "Waiting..."
+
+Info.TextColor3 =
+    Color3.fromRGB(170,170,180)
+
+Info.TextSize = 11
+
+Info.Font =
+    Enum.Font.Gotham
+
+Info.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+Info.Parent = Main
+
+--==================================================
+-- TOGGLE
+--==================================================
+
+local Toggle =
+    Instance.new("TextButton")
+
+Toggle.Size =
+    UDim2.new(1,-20,0,35)
+
+Toggle.Position =
+    UDim2.new(0,10,1,-45)
+
+Toggle.Text =
+    "COLLECTOR: ON"
+
+Toggle.TextColor3 =
+    Color3.fromRGB(255,255,255)
+
+Toggle.TextSize = 13
+
+Toggle.Font =
+    Enum.Font.GothamBold
+
+Toggle.BackgroundColor3 =
+    Color3.fromRGB(40,130,65)
+
+Toggle.Parent = Main
+
+Toggle.MouseButton1Click:Connect(function()
+
+    Enabled = not Enabled
+
+    if Enabled then
+
+        Toggle.Text =
+            "COLLECTOR: ON"
+
+        Toggle.BackgroundColor3 =
+            Color3.fromRGB(40,130,65)
+
+        Status.Text =
+            "WAITING FOR NEW POSITION"
+
+        Status.TextColor3 =
+            Color3.fromRGB(255,220,100)
+
+    else
+
+        Toggle.Text =
+            "COLLECTOR: OFF"
+
+        Toggle.BackgroundColor3 =
+            Color3.fromRGB(130,45,45)
+
+        Status.Text =
+            "PAUSED"
+
+        Status.TextColor3 =
+            Color3.fromRGB(255,100,100)
+
+    end
+end)
+
+--==================================================
+-- DRAG
+--==================================================
+
+local Dragging = false
+local DragStart
+local StartPosition
+
+Title.InputBegan:Connect(function(input)
+
+    if
+        input.UserInputType ==
+        Enum.UserInputType.MouseButton1
+        or
+        input.UserInputType ==
+        Enum.UserInputType.Touch
+    then
+
+        Dragging = true
+        DragStart = input.Position
+        StartPosition = Main.Position
+
+    end
+end)
+
+Title.InputEnded:Connect(function(input)
+
+    if
+        input.UserInputType ==
+        Enum.UserInputType.MouseButton1
+        or
+        input.UserInputType ==
+        Enum.UserInputType.Touch
+    then
+
+        Dragging = false
+
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+
+    if not Dragging then
         return
     end
+
+    if
+        input.UserInputType ==
+        Enum.UserInputType.MouseMovement
+        or
+        input.UserInputType ==
+        Enum.UserInputType.Touch
+    then
+
+        local Delta =
+            input.Position - DragStart
+
+        Main.Position =
+            UDim2.new(
+                StartPosition.X.Scale,
+                StartPosition.X.Offset + Delta.X,
+
+                StartPosition.Y.Scale,
+                StartPosition.Y.Offset + Delta.Y
+            )
+    end
+end)
+
+--==================================================
+-- POSITION CACHE
+--==================================================
+
+local ObjectState = {}
+
+-- ObjectState[obj] = {
+--     position = Vector3,
+--     lastCollected = Vector3,
+--     initialized = true
+-- }
+
+--==================================================
+-- QUEUE
+--==================================================
+
+local Queue = {}
+local QueueKeys = {}
+
+local function QueueObject(
+    obj,
+    folderName,
+    position
+)
 
     if not obj then
         return
     end
 
-    if not obj.Parent then
+    if QueueKeys[obj] then
         return
     end
 
-    -- Đã xử lý object này rồi
-    if Processed[obj] then
-        return
-    end
+    QueueKeys[obj] = true
 
-    local Position =
-        GetPosition(obj)
-
-    if not Position then
-
-        -- Model có thể chưa load part
-        task.wait(0.05)
-
-        Position =
-            GetPosition(obj)
-
-        if not Position then
-            return
-        end
-    end
-
-    Processed[obj] = true
-
-    if not Root
-        or not Root.Parent then
-
-        UpdateCharacter()
-
-    end
-
-    if not Root then
-        return
-    end
-
-    print(
-        "[V5.3] NEW SPAWN:",
-        obj:GetFullName()
+    table.insert(
+        Queue,
+        {
+            object = obj,
+            folder = folderName,
+            position = position
+        }
     )
-
-    print(
-        "[V5.3] POSITION:",
-        tostring(Position)
-    )
-
-    Target.Text =
-        "Target: " ..
-        obj.Name ..
-        "\n" ..
-        folderName
-
-    Status.Text =
-        "Status: TELEPORTING"
-
-    Status.TextColor3 =
-        Color3.fromRGB(100,255,100)
-
-    pcall(function()
-
-        Root.CFrame =
-            CFrame.new(
-                Position +
-                Vector3.new(0,2,0)
-            )
-
-    end)
-
-    task.wait(TeleportDelay)
-
-    Status.Text =
-        "Status: WAITING FOR SPAWN"
-
-    Status.TextColor3 =
-        Color3.fromRGB(255,220,100)
 
 end
 
 --==================================================
--- MONITOR NEW CHILD
+-- PROCESS QUEUE
 --==================================================
 
-local function MonitorFolder(
+task.spawn(function()
+
+    while task.wait(0.02) do
+
+        if not Enabled then
+            continue
+        end
+
+        local item =
+            table.remove(
+                Queue,
+                1
+            )
+
+        if not item then
+            continue
+        end
+
+        QueueKeys[item.object] = nil
+
+        local obj = item.object
+
+        if not obj
+            or not obj.Parent then
+
+            continue
+        end
+
+        local position =
+            GetPosition(obj)
+
+        if not position then
+            continue
+        end
+
+        if not Root
+            or not Root.Parent then
+
+            RefreshCharacter()
+
+        end
+
+        if not Root then
+            continue
+        end
+
+        -- Kiểm tra lần cuối:
+        -- nếu vị trí đã thay đổi trước khi xử lý
+        -- thì dùng vị trí mới nhất.
+
+        local state =
+            ObjectState[obj]
+
+        if state
+            and state.lastCollected then
+
+            local distance =
+                (
+                    position -
+                    state.lastCollected
+                ).Magnitude
+
+            if distance <
+                PositionThreshold then
+
+                continue
+            end
+        end
+
+        --==========================================
+        -- TELEPORT
+        --==========================================
+
+        Status.Text =
+            "TELEPORTING"
+
+        Status.TextColor3 =
+            Color3.fromRGB(
+                100,
+                255,
+                100
+            )
+
+        Target.Text =
+            "Target: " ..
+            obj.Name ..
+            "\n" ..
+            item.folder
+
+        Info.Text =
+            "Position: " ..
+            tostring(position)
+
+        print(
+            "[V5.4] TP ->",
+            obj:GetFullName(),
+            "|",
+            tostring(position)
+        )
+
+        pcall(function()
+
+            Root.CFrame =
+                CFrame.new(
+                    position +
+                    Vector3.new(0,2,0)
+                )
+
+        end)
+
+        --==========================================
+        -- LOCK THIS POSITION
+        --==========================================
+
+        ObjectState[obj] = ObjectState[obj] or {}
+
+        ObjectState[obj].lastCollected =
+            position
+
+        task.wait(TeleportDelay)
+
+        Status.Text =
+            "WAITING FOR NEW POSITION"
+
+        Status.TextColor3 =
+            Color3.fromRGB(
+                255,
+                220,
+                100
+            )
+
+    end
+end)
+
+--==================================================
+-- INITIALIZE EXISTING OBJECTS
+--
+-- QUAN TRỌNG:
+-- Object đã tồn tại khi execute sẽ KHÔNG bị TP.
+-- Chỉ lưu position làm mốc.
+--==================================================
+
+local function InitializeFolder(
     folder,
     folderName
 )
 
     if not folder then
+        return 0
+    end
 
-        warn(
-            "[V5.3] Folder missing:",
-            folderName
-        )
+    local count = 0
 
-        return
+    for _, obj in ipairs(
+        folder:GetChildren()
+    ) do
+
+        local position =
+            GetPosition(obj)
+
+        if position then
+
+            ObjectState[obj] = {
+                position = position,
+                lastCollected = position,
+                initialized = true
+            }
+
+            count += 1
+
+        end
     end
 
     print(
-        "[V5.3] Monitoring:",
-        folder:GetFullName()
+        "[V5.4] Initialized",
+        folderName,
+        count,
+        "existing objects"
     )
 
-    -- QUAN TRỌNG:
-    -- Không xử lý object đã có sẵn.
-    -- Chỉ ChildAdded từ thời điểm script chạy.
+    return count
+end
+
+InitializeFolder(
+    VariantFolder,
+    "ActiveVariantTokenSpawns"
+)
+
+InitializeFolder(
+    ActiveFolder,
+    "ActiveCollectableObjects"
+)
+
+InitializeFolder(
+    CollectableFolder,
+    "CollectableObjects"
+)
+
+--==================================================
+-- DETECT NEW / MOVED
+--==================================================
+
+local function MonitorFolder(
+    folder,
+    folderName,
+    priority
+)
+
+    if not folder then
+        warn(
+            "[V5.4] Missing folder:",
+            folderName
+        )
+        return
+    end
+
+    --==============================================
+    -- NEW OBJECT
+    --==============================================
 
     folder.ChildAdded:Connect(
         function(obj)
 
-            print(
-                "[V5.3] >>> SPAWN DETECTED <<<"
-            )
+            task.wait(0.03)
+
+            local position =
+                GetPosition(obj)
+
+            if not position then
+                return
+            end
 
             print(
-                "[V5.3]",
-                folderName,
-                obj.Name
+                "[V5.4] NEW OBJECT:",
+                obj:GetFullName(),
+                "|",
+                tostring(position)
             )
 
-            task.wait(SpawnDelay)
+            ObjectState[obj] = {
+                position = position,
+                lastCollected = nil,
+                initialized = false
+            }
 
-            CollectNewObject(
+            QueueObject(
                 obj,
-                folderName
+                folderName,
+                position
+            )
+
+        end
+    )
+
+    --==============================================
+    -- REMOVED
+    --==============================================
+
+    folder.ChildRemoved:Connect(
+        function(obj)
+
+            ObjectState[obj] = nil
+            QueueKeys[obj] = nil
+
+            print(
+                "[V5.4] REMOVED:",
+                obj.Name
             )
 
         end
@@ -764,56 +893,265 @@ end
 --==================================================
 
 MonitorFolder(
-    ActiveVariantTokenSpawns,
-    "ActiveVariantTokenSpawns"
+    VariantFolder,
+    "ActiveVariantTokenSpawns",
+    1
 )
 
 MonitorFolder(
-    ActiveCollectableObjects,
-    "ActiveCollectableObjects"
+    ActiveFolder,
+    "ActiveCollectableObjects",
+    2
 )
 
 MonitorFolder(
-    CollectableObjects,
-    "CollectableObjects"
+    CollectableFolder,
+    "CollectableObjects",
+    3
 )
 
 --==================================================
--- REMOVE CACHE
+-- POSITION MONITOR
 --==================================================
 
-local function SetupRemoveMonitor(folder)
+task.spawn(function()
 
-    if not folder then
-        return
-    end
+    while task.wait(CheckDelay) do
 
-    folder.ChildRemoved:Connect(
-        function(obj)
-
-            Processed[obj] = nil
-
-            print(
-                "[V5.3] Removed:",
-                obj.Name
-            )
-
+        if not Enabled then
+            continue
         end
-    )
 
-end
+        --==========================================
+        -- PRIORITY 1
+        -- VARIANT
+        --==========================================
 
-SetupRemoveMonitor(
-    ActiveVariantTokenSpawns
-)
+        if VariantFolder then
 
-SetupRemoveMonitor(
-    ActiveCollectableObjects
-)
+            for _, obj in ipairs(
+                VariantFolder:GetChildren()
+            ) do
 
-SetupRemoveMonitor(
-    CollectableObjects
-)
+                local position =
+                    GetPosition(obj)
+
+                if position then
+
+                    local state =
+                        ObjectState[obj]
+
+                    if not state then
+
+                        ObjectState[obj] = {
+                            position = position,
+                            lastCollected = nil
+                        }
+
+                        QueueObject(
+                            obj,
+                            "ActiveVariantTokenSpawns",
+                            position
+                        )
+
+                    else
+
+                        local old =
+                            state.position
+
+                        if old then
+
+                            local moved =
+                                (
+                                    position -
+                                    old
+                                ).Magnitude
+
+                            if moved >=
+                                PositionThreshold then
+
+                                state.position =
+                                    position
+
+                                -- Chỉ queue nếu đây
+                                -- thực sự là vị trí mới.
+
+                                if
+                                    not state.lastCollected
+                                    or
+                                    (
+                                        position -
+                                        state.lastCollected
+                                    ).Magnitude >=
+                                    PositionThreshold
+                                then
+
+                                    QueueObject(
+                                        obj,
+                                        "ActiveVariantTokenSpawns",
+                                        position
+                                    )
+
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        --==========================================
+        -- PRIORITY 2
+        -- ACTIVE
+        --==========================================
+
+        if ActiveFolder then
+
+            for _, obj in ipairs(
+                ActiveFolder:GetChildren()
+            ) do
+
+                local position =
+                    GetPosition(obj)
+
+                if position then
+
+                    local state =
+                        ObjectState[obj]
+
+                    if not state then
+
+                        ObjectState[obj] = {
+                            position = position,
+                            lastCollected = nil
+                        }
+
+                        QueueObject(
+                            obj,
+                            "ActiveCollectableObjects",
+                            position
+                        )
+
+                    else
+
+                        local old =
+                            state.position
+
+                        if old then
+
+                            local moved =
+                                (
+                                    position -
+                                    old
+                                ).Magnitude
+
+                            if moved >=
+                                PositionThreshold then
+
+                                state.position =
+                                    position
+
+                                if
+                                    not state.lastCollected
+                                    or
+                                    (
+                                        position -
+                                        state.lastCollected
+                                    ).Magnitude >=
+                                    PositionThreshold
+                                then
+
+                                    QueueObject(
+                                        obj,
+                                        "ActiveCollectableObjects",
+                                        position
+                                    )
+
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        --==========================================
+        -- PRIORITY 3
+        -- COLLECTABLE
+        --==========================================
+
+        if CollectableFolder then
+
+            for _, obj in ipairs(
+                CollectableFolder:GetChildren()
+            ) do
+
+                local position =
+                    GetPosition(obj)
+
+                if position then
+
+                    local state =
+                        ObjectState[obj]
+
+                    if not state then
+
+                        ObjectState[obj] = {
+                            position = position,
+                            lastCollected = nil
+                        }
+
+                        QueueObject(
+                            obj,
+                            "CollectableObjects",
+                            position
+                        )
+
+                    else
+
+                        local old =
+                            state.position
+
+                        if old then
+
+                            local moved =
+                                (
+                                    position -
+                                    old
+                                ).Magnitude
+
+                            if moved >=
+                                PositionThreshold then
+
+                                state.position =
+                                    position
+
+                                if
+                                    not state.lastCollected
+                                    or
+                                    (
+                                        position -
+                                        state.lastCollected
+                                    ).Magnitude >=
+                                    PositionThreshold
+                                then
+
+                                    QueueObject(
+                                        obj,
+                                        "CollectableObjects",
+                                        position
+                                    )
+
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+    end
+end)
 
 --==================================================
 -- ANTI AFK
@@ -839,25 +1177,26 @@ Player.Idled:Connect(function()
     end)
 
     print(
-        "[V5.3] Anti-AFK"
+        "[V5.4] Anti-AFK"
     )
 
 end)
 
 --==================================================
--- CLEAN CACHE
+-- CACHE CLEANUP
 --==================================================
 
 task.spawn(function()
 
     while task.wait(5) do
 
-        for obj in pairs(Processed) do
+        for obj in pairs(ObjectState) do
 
             if not obj
                 or not obj.Parent then
 
-                Processed[obj] = nil
+                ObjectState[obj] = nil
+                QueueKeys[obj] = nil
 
             end
 
@@ -871,17 +1210,14 @@ end)
 -- READY
 --==================================================
 
-Status.Text =
-    "Status: WAITING FOR SPAWN"
-
-Status.TextColor3 =
-    Color3.fromRGB(255,220,100)
-
-Counter.Text =
+Info.Text =
     "Existing objects ignored"
 
 print("======================================")
-print("V5.3 READY")
-print("Existing objects will NOT be collected.")
-print("Waiting for NEW spawned objects...")
+print("V5.4 READY")
+print("======================================")
+print("Existing objects: IGNORED")
+print("New object: DETECTED")
+print("Position change: DETECTED")
+print("Same position: LOCKED")
 print("======================================")
