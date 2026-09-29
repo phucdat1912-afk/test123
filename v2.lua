@@ -1,24 +1,16 @@
 --==================================================
--- INSTANT TOKEN COLLECTOR V5.4
--- POSITION CHANGE DETECTOR
---
--- STRUCTURE:
--- Workspace.Systems.ActiveVariantTokenSpawns
--- Workspace.Systems.ActiveCollectableObjects
--- Workspace.Systems.CollectableObjects
---
--- LOGIC:
--- 1. Ignore objects already existing when script starts
--- 2. Detect NEW objects
--- 3. Detect reused objects moving to a NEW position
--- 4. TP ONCE per new position
--- 5. Do NOT TP repeatedly to the same position
--- 6. Variant has highest priority
+-- INSTANT TOKEN COLLECTOR V5.1
+-- ALL 3 FOLDERS
+-- ANTI-AFK V2
+-- VARIANT POSITION MONITOR
+-- HIDE / SHOW
+-- DRAGGABLE
 --==================================================
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local VirtualUser = game:GetService("VirtualUser")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Player = Players.LocalPlayer
 
@@ -26,175 +18,64 @@ local Player = Players.LocalPlayer
 -- CONFIG
 --==================================================
 
-local Enabled = true
+local TP_HEIGHT = 3
+local SCAN_DELAY = 0.05
+local COLLECT_DELAY = 0.05
+local MOVE_DISTANCE = 0.5
+
+local Running = false
 local AntiAFK = true
 
-local PositionThreshold = 3
-local TeleportDelay = 0.08
-local CheckDelay = 0.10
-
---==================================================
--- SAFE FIND
---==================================================
-
-local function Find(parent, name, timeout)
-
-    if not parent then
-        return nil
-    end
-
-    local obj = parent:FindFirstChild(name)
-
-    if obj then
-        return obj
-    end
-
-    local start = os.clock()
-
-    while os.clock() - start < timeout do
-
-        obj = parent:FindFirstChild(name)
-
-        if obj then
-            return obj
-        end
-
-        task.wait(0.1)
-    end
-
-    return nil
-end
+local Processing = {}
+local LastPositions = {}
 
 --==================================================
 -- SYSTEMS
 --==================================================
 
-local Systems = Find(
-    workspace,
-    "Systems",
-    5
-)
+local Systems = workspace:FindFirstChild("Systems")
 
 if not Systems then
-    warn("[V5.4] Workspace.Systems NOT FOUND")
+    warn("[TOKEN] Systems not found")
     return
 end
 
-local VariantFolder = Find(
-    Systems,
-    "ActiveVariantTokenSpawns",
-    3
-)
+local VariantFolder =
+    Systems:FindFirstChild("ActiveVariantTokenSpawns")
 
-local ActiveFolder = Find(
-    Systems,
-    "ActiveCollectableObjects",
-    3
-)
+local ActiveFolder =
+    Systems:FindFirstChild("ActiveCollectableObjects")
 
-local CollectableFolder = Find(
-    Systems,
-    "CollectableObjects",
-    3
-)
-
-print("======================================")
-print("INSTANT TOKEN COLLECTOR V5.4")
-print("======================================")
-
-print(
-    "Variant:",
-    VariantFolder and VariantFolder:GetFullName()
-        or "NOT FOUND"
-)
-
-print(
-    "Active:",
-    ActiveFolder and ActiveFolder:GetFullName()
-        or "NOT FOUND"
-)
-
-print(
-    "Collectable:",
-    CollectableFolder and CollectableFolder:GetFullName()
-        or "NOT FOUND"
-)
-
-print("======================================")
+local CollectFolder =
+    Systems:FindFirstChild("CollectableObjects")
 
 --==================================================
--- CHARACTER
+-- REMOTE
 --==================================================
 
-local Character
-local Root
+local Remotes =
+    ReplicatedStorage:FindFirstChild("Remotes")
 
-local function RefreshCharacter()
+local Remote =
+    Remotes and
+    Remotes:FindFirstChild(
+        "CollectCollectableObject"
+    )
 
-    Character = Player.Character
-
-    if not Character then
-        return false
-    end
-
-    Root =
-        Character:FindFirstChild(
-            "HumanoidRootPart"
-        )
-
-    return Root ~= nil
-end
-
-RefreshCharacter()
-
-Player.CharacterAdded:Connect(function(char)
-
-    Character = char
-
-    Root =
-        char:WaitForChild(
-            "HumanoidRootPart",
-            5
-        )
-
-end)
-
---==================================================
--- POSITION
---==================================================
-
-local function GetPosition(obj)
-
-    if not obj then
-        return nil
-    end
-
-    if obj:IsA("BasePart") then
-        return obj.Position
-    end
-
-    if obj:IsA("Model") then
-
-        if obj.PrimaryPart then
-            return obj.PrimaryPart.Position
-        end
-
-        local part =
-            obj:FindFirstChildWhichIsA(
-                "BasePart",
-                true
-            )
-
-        if part then
-            return part.Position
-        end
-    end
-
-    return nil
+if Remote then
+    print(
+        "[TOKEN] Remote:",
+        Remote:GetFullName(),
+        Remote.ClassName
+    )
+else
+    warn(
+        "[TOKEN] CollectCollectableObject not found"
+    )
 end
 
 --==================================================
--- UI
+-- OLD GUI
 --==================================================
 
 local PlayerGui =
@@ -202,49 +83,62 @@ local PlayerGui =
 
 local Old =
     PlayerGui:FindFirstChild(
-        "TokenCollectorV54"
+        "InstantTokenCollectorV51"
     )
 
 if Old then
     Old:Destroy()
 end
 
+--==================================================
+-- GUI
+--==================================================
+
 local Gui =
     Instance.new("ScreenGui")
 
 Gui.Name =
-    "TokenCollectorV54"
+    "InstantTokenCollectorV51"
 
 Gui.ResetOnSpawn = false
+Gui.IgnoreGuiInset = true
 Gui.Parent = PlayerGui
+
+--==================================================
+-- MAIN
+--==================================================
 
 local Main =
     Instance.new("Frame")
 
 Main.Size =
-    UDim2.new(0,310,0,235)
+    UDim2.new(0,360,0,285)
 
 Main.Position =
     UDim2.new(
         0.5,
-        -155,
+        -180,
         0.5,
-        -117
+        -142
     )
 
 Main.BackgroundColor3 =
-    Color3.fromRGB(25,25,30)
+    Color3.fromRGB(
+        25,
+        25,
+        25
+    )
 
 Main.BorderSizePixel = 0
 Main.Parent = Gui
 
-local Corner =
+local MainCorner =
     Instance.new("UICorner")
 
-Corner.CornerRadius =
+MainCorner.CornerRadius =
     UDim.new(0,10)
 
-Corner.Parent = Main
+MainCorner.Parent = Main
 
 --==================================================
 -- TITLE
@@ -254,20 +148,30 @@ local Title =
     Instance.new("TextLabel")
 
 Title.Size =
-    UDim2.new(1,-45,0,35)
+    UDim2.new(
+        1,
+        -90,
+        0,
+        40
+    )
 
 Title.Position =
-    UDim2.new(0,10,0,3)
+    UDim2.new(
+        0,
+        10,
+        0,
+        0
+    )
 
 Title.BackgroundTransparency = 1
 
 Title.Text =
-    "INSTANT TOKEN COLLECTOR V5.4"
+    "⚡ Token Collector V5.1"
 
 Title.TextColor3 =
-    Color3.fromRGB(255,255,255)
+    Color3.new(1,1,1)
 
-Title.TextSize = 14
+Title.TextSize = 17
 
 Title.Font =
     Enum.Font.GothamBold
@@ -285,57 +189,81 @@ local Hide =
     Instance.new("TextButton")
 
 Hide.Size =
-    UDim2.new(0,30,0,28)
+    UDim2.new(0,35,0,30)
 
 Hide.Position =
-    UDim2.new(1,-35,0,5)
+    UDim2.new(
+        1,
+        -75,
+        0,
+        5
+    )
 
-Hide.Text = "-"
+Hide.Text = "—"
 
 Hide.TextSize = 18
 
 Hide.TextColor3 =
-    Color3.fromRGB(255,255,255)
+    Color3.new(1,1,1)
 
 Hide.BackgroundColor3 =
-    Color3.fromRGB(50,50,60)
+    Color3.fromRGB(
+        55,
+        55,
+        55
+    )
 
 Hide.Parent = Main
 
-local Show =
+local HideCorner =
+    Instance.new("UICorner")
+
+HideCorner.CornerRadius =
+    UDim.new(0,6)
+
+HideCorner.Parent = Hide
+
+--==================================================
+-- CLOSE
+--==================================================
+
+local Close =
     Instance.new("TextButton")
 
-Show.Size =
-    UDim2.new(0,70,0,35)
+Close.Size =
+    UDim2.new(0,35,0,30)
 
-Show.Position =
-    UDim2.new(0,10,0.5,-17)
+Close.Position =
+    UDim2.new(
+        1,
+        -38,
+        0,
+        5
+    )
 
-Show.Text = "TOKEN"
+Close.Text = "X"
 
-Show.TextColor3 =
-    Color3.fromRGB(255,255,255)
+Close.TextSize = 15
 
-Show.TextSize = 11
+Close.TextColor3 =
+    Color3.new(1,1,1)
 
-Show.Font =
-    Enum.Font.GothamBold
+Close.BackgroundColor3 =
+    Color3.fromRGB(
+        130,
+        40,
+        40
+    )
 
-Show.BackgroundColor3 =
-    Color3.fromRGB(25,25,30)
+Close.Parent = Main
 
-Show.Visible = false
-Show.Parent = Gui
+local CloseCorner =
+    Instance.new("UICorner")
 
-Hide.MouseButton1Click:Connect(function()
-    Main.Visible = false
-    Show.Visible = true
-end)
+CloseCorner.CornerRadius =
+    UDim.new(0,6)
 
-Show.MouseButton1Click:Connect(function()
-    Main.Visible = true
-    Show.Visible = false
-end)
+CloseCorner.Parent = Close
 
 --==================================================
 -- STATUS
@@ -345,20 +273,34 @@ local Status =
     Instance.new("TextLabel")
 
 Status.Size =
-    UDim2.new(1,-20,0,30)
+    UDim2.new(
+        1,
+        -20,
+        0,
+        30
+    )
 
 Status.Position =
-    UDim2.new(0,10,0,43)
+    UDim2.new(
+        0,
+        10,
+        0,
+        45
+    )
 
 Status.BackgroundTransparency = 1
 
 Status.Text =
-    "WAITING FOR NEW POSITION"
+    "Status: STOPPED"
 
 Status.TextColor3 =
-    Color3.fromRGB(255,220,100)
+    Color3.fromRGB(
+        255,
+        100,
+        100
+    )
 
-Status.TextSize = 13
+Status.TextSize = 14
 
 Status.Font =
     Enum.Font.GothamBold
@@ -369,39 +311,6 @@ Status.TextXAlignment =
 Status.Parent = Main
 
 --==================================================
--- TARGET
---==================================================
-
-local Target =
-    Instance.new("TextLabel")
-
-Target.Size =
-    UDim2.new(1,-20,0,45)
-
-Target.Position =
-    UDim2.new(0,10,0,75)
-
-Target.BackgroundTransparency = 1
-
-Target.Text =
-    "Target: None"
-
-Target.TextColor3 =
-    Color3.fromRGB(210,210,210)
-
-Target.TextSize = 12
-
-Target.Font =
-    Enum.Font.Gotham
-
-Target.TextWrapped = true
-
-Target.TextXAlignment =
-    Enum.TextXAlignment.Left
-
-Target.Parent = Main
-
---==================================================
 -- INFO
 --==================================================
 
@@ -409,92 +318,193 @@ local Info =
     Instance.new("TextLabel")
 
 Info.Size =
-    UDim2.new(1,-20,0,30)
+    UDim2.new(
+        1,
+        -20,
+        1,
+        -155
+    )
 
 Info.Position =
-    UDim2.new(0,10,0,122)
+    UDim2.new(
+        0,
+        10,
+        0,
+        75
+    )
 
 Info.BackgroundTransparency = 1
 
 Info.Text =
-    "Waiting..."
+    "Variant: 0\n" ..
+    "Active: 0\n" ..
+    "Collectable: 0\n" ..
+    "Last: NONE"
 
 Info.TextColor3 =
-    Color3.fromRGB(170,170,180)
+    Color3.fromRGB(
+        220,
+        220,
+        220
+    )
 
-Info.TextSize = 11
+Info.TextSize = 13
 
 Info.Font =
-    Enum.Font.Gotham
+    Enum.Font.Code
 
 Info.TextXAlignment =
     Enum.TextXAlignment.Left
 
+Info.TextYAlignment =
+    Enum.TextYAlignment.Top
+
 Info.Parent = Main
 
 --==================================================
--- TOGGLE
+-- ANTI AFK STATUS
+--==================================================
+
+local AFKStatus =
+    Instance.new("TextLabel")
+
+AFKStatus.Size =
+    UDim2.new(
+        1,
+        -20,
+        0,
+        22
+    )
+
+AFKStatus.Position =
+    UDim2.new(
+        0,
+        10,
+        1,
+        -100
+    )
+
+AFKStatus.BackgroundTransparency = 1
+
+AFKStatus.Text =
+    "Anti-AFK: ON"
+
+AFKStatus.TextColor3 =
+    Color3.fromRGB(
+        100,
+        255,
+        120
+    )
+
+AFKStatus.TextSize = 12
+
+AFKStatus.Font =
+    Enum.Font.GothamBold
+
+AFKStatus.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+AFKStatus.Parent = Main
+
+--==================================================
+-- BUTTON
 --==================================================
 
 local Toggle =
     Instance.new("TextButton")
 
 Toggle.Size =
-    UDim2.new(1,-20,0,35)
+    UDim2.new(
+        1,
+        -20,
+        0,
+        42
+    )
 
 Toggle.Position =
-    UDim2.new(0,10,1,-45)
+    UDim2.new(
+        0,
+        10,
+        1,
+        -52
+    )
 
 Toggle.Text =
-    "COLLECTOR: ON"
+    "START"
 
 Toggle.TextColor3 =
-    Color3.fromRGB(255,255,255)
+    Color3.new(1,1,1)
 
-Toggle.TextSize = 13
+Toggle.TextSize = 15
 
 Toggle.Font =
     Enum.Font.GothamBold
 
 Toggle.BackgroundColor3 =
-    Color3.fromRGB(40,130,65)
+    Color3.fromRGB(
+        45,
+        120,
+        65
+    )
 
 Toggle.Parent = Main
 
-Toggle.MouseButton1Click:Connect(function()
+local ToggleCorner =
+    Instance.new("UICorner")
 
-    Enabled = not Enabled
+ToggleCorner.CornerRadius =
+    UDim.new(0,7)
 
-    if Enabled then
+ToggleCorner.Parent = Toggle
 
-        Toggle.Text =
-            "COLLECTOR: ON"
+--==================================================
+-- MINI
+--==================================================
 
-        Toggle.BackgroundColor3 =
-            Color3.fromRGB(40,130,65)
+local Mini =
+    Instance.new("TextButton")
 
-        Status.Text =
-            "WAITING FOR NEW POSITION"
+Mini.Size =
+    UDim2.new(
+        0,
+        55,
+        0,
+        55
+    )
 
-        Status.TextColor3 =
-            Color3.fromRGB(255,220,100)
+Mini.Position =
+    UDim2.new(
+        0,
+        20,
+        0.5,
+        -25
+    )
 
-    else
+Mini.Text = "⚡"
 
-        Toggle.Text =
-            "COLLECTOR: OFF"
+Mini.TextSize = 25
 
-        Toggle.BackgroundColor3 =
-            Color3.fromRGB(130,45,45)
+Mini.TextColor3 =
+    Color3.new(1,1,1)
 
-        Status.Text =
-            "PAUSED"
+Mini.BackgroundColor3 =
+    Color3.fromRGB(
+        30,
+        30,
+        30
+    )
 
-        Status.TextColor3 =
-            Color3.fromRGB(255,100,100)
+Mini.Visible = false
 
-    end
-end)
+Mini.Parent = Gui
+
+local MiniCorner =
+    Instance.new("UICorner")
+
+MiniCorner.CornerRadius =
+    UDim.new(1,0)
+
+MiniCorner.Parent = Mini
 
 --==================================================
 -- DRAG
@@ -504,384 +514,337 @@ local Dragging = false
 local DragStart
 local StartPosition
 
-Title.InputBegan:Connect(function(input)
+Title.InputBegan:Connect(function(Input)
 
     if
-        input.UserInputType ==
+        Input.UserInputType ==
         Enum.UserInputType.MouseButton1
         or
-        input.UserInputType ==
+        Input.UserInputType ==
         Enum.UserInputType.Touch
     then
 
         Dragging = true
-        DragStart = input.Position
+        DragStart = Input.Position
         StartPosition = Main.Position
 
     end
+
 end)
 
-Title.InputEnded:Connect(function(input)
+Title.InputEnded:Connect(function(Input)
 
     if
-        input.UserInputType ==
+        Input.UserInputType ==
         Enum.UserInputType.MouseButton1
         or
-        input.UserInputType ==
+        Input.UserInputType ==
         Enum.UserInputType.Touch
     then
 
         Dragging = false
 
     end
+
 end)
 
-UserInputService.InputChanged:Connect(function(input)
+UserInputService.InputChanged:Connect(function(Input)
 
     if not Dragging then
         return
     end
 
     if
-        input.UserInputType ==
+        Input.UserInputType ~=
         Enum.UserInputType.MouseMovement
-        or
-        input.UserInputType ==
+        and
+        Input.UserInputType ~=
         Enum.UserInputType.Touch
     then
-
-        local Delta =
-            input.Position - DragStart
-
-        Main.Position =
-            UDim2.new(
-                StartPosition.X.Scale,
-                StartPosition.X.Offset + Delta.X,
-
-                StartPosition.Y.Scale,
-                StartPosition.Y.Offset + Delta.Y
-            )
+        return
     end
+
+    local Delta =
+        Input.Position - DragStart
+
+    Main.Position =
+        UDim2.new(
+            StartPosition.X.Scale,
+            StartPosition.X.Offset + Delta.X,
+            StartPosition.Y.Scale,
+            StartPosition.Y.Offset + Delta.Y
+        )
+
 end)
 
 --==================================================
--- POSITION CACHE
+-- HIDE / SHOW
 --==================================================
 
-local ObjectState = {}
+Hide.MouseButton1Click:Connect(function()
 
--- ObjectState[obj] = {
---     position = Vector3,
---     lastCollected = Vector3,
---     initialized = true
--- }
+    Main.Visible = false
+    Mini.Visible = true
+
+end)
+
+Mini.MouseButton1Click:Connect(function()
+
+    Main.Visible = true
+    Mini.Visible = false
+
+end)
 
 --==================================================
--- QUEUE
+-- POSITION
 --==================================================
 
-local Queue = {}
-local QueueKeys = {}
+local function GetPosition(Object)
 
-local function QueueObject(
-    obj,
-    folderName,
-    position
-)
-
-    if not obj then
-        return
+    if not Object then
+        return nil
     end
 
-    if QueueKeys[obj] then
-        return
+    if Object:IsA("BasePart") then
+
+        return Object.Position
+
     end
 
-    QueueKeys[obj] = true
+    if Object:IsA("Model") then
 
-    table.insert(
-        Queue,
-        {
-            object = obj,
-            folder = folderName,
-            position = position
-        }
-    )
+        if Object.PrimaryPart then
+
+            return Object.PrimaryPart.Position
+
+        end
+
+        local Part =
+            Object:FindFirstChildWhichIsA(
+                "BasePart",
+                true
+            )
+
+        if Part then
+            return Part.Position
+        end
+
+    end
+
+    return nil
 
 end
 
 --==================================================
--- PROCESS QUEUE
+-- TELEPORT
 --==================================================
 
-task.spawn(function()
+local function Teleport(Position)
 
-    while task.wait(0.02) do
+    if not Position then
+        return false
+    end
 
-        if not Enabled then
-            continue
-        end
+    local Character =
+        Player.Character
 
-        local item =
-            table.remove(
-                Queue,
-                1
-            )
+    if not Character then
+        return false
+    end
 
-        if not item then
-            continue
-        end
-
-        QueueKeys[item.object] = nil
-
-        local obj = item.object
-
-        if not obj
-            or not obj.Parent then
-
-            continue
-        end
-
-        local position =
-            GetPosition(obj)
-
-        if not position then
-            continue
-        end
-
-        if not Root
-            or not Root.Parent then
-
-            RefreshCharacter()
-
-        end
-
-        if not Root then
-            continue
-        end
-
-        -- Kiểm tra lần cuối:
-        -- nếu vị trí đã thay đổi trước khi xử lý
-        -- thì dùng vị trí mới nhất.
-
-        local state =
-            ObjectState[obj]
-
-        if state
-            and state.lastCollected then
-
-            local distance =
-                (
-                    position -
-                    state.lastCollected
-                ).Magnitude
-
-            if distance <
-                PositionThreshold then
-
-                continue
-            end
-        end
-
-        --==========================================
-        -- TELEPORT
-        --==========================================
-
-        Status.Text =
-            "TELEPORTING"
-
-        Status.TextColor3 =
-            Color3.fromRGB(
-                100,
-                255,
-                100
-            )
-
-        Target.Text =
-            "Target: " ..
-            obj.Name ..
-            "\n" ..
-            item.folder
-
-        Info.Text =
-            "Position: " ..
-            tostring(position)
-
-        print(
-            "[V5.4] TP ->",
-            obj:GetFullName(),
-            "|",
-            tostring(position)
+    local Root =
+        Character:FindFirstChild(
+            "HumanoidRootPart"
         )
 
+    if not Root then
+        return false
+    end
+
+    Character:PivotTo(
+        CFrame.new(
+            Position +
+            Vector3.new(
+                0,
+                TP_HEIGHT,
+                0
+            )
+        )
+    )
+
+    return true
+
+end
+
+--==================================================
+-- COUNTERS
+--==================================================
+
+local VariantCount = 0
+local ActiveCount = 0
+local CollectCount = 0
+
+local function UpdateInfo(
+    Source,
+    Object
+)
+
+    local Name = "NONE"
+
+    if Object then
+        Name = Object.Name
+    end
+
+    Info.Text =
+        "Variant: " ..
+        VariantCount ..
+        "\n" ..
+
+        "Active: " ..
+        ActiveCount ..
+        "\n" ..
+
+        "Collectable: " ..
+        CollectCount ..
+        "\n" ..
+
+        "Last: " ..
+        Source ..
+        " -> " ..
+        Name
+
+end
+
+--==================================================
+-- REMOTE
+--==================================================
+
+local function FireCollect(Object)
+
+    if not Remote then
+        warn(
+            "[REMOTE] Remote missing"
+        )
+        return false
+    end
+
+    local Success, Error =
         pcall(function()
 
-            Root.CFrame =
-                CFrame.new(
-                    position +
-                    Vector3.new(0,2,0)
-                )
+            Remote:FireServer(
+                Object
+            )
 
         end)
 
-        --==========================================
-        -- LOCK THIS POSITION
-        --==========================================
+    if Success then
 
-        ObjectState[obj] = ObjectState[obj] or {}
+        print(
+            "[REMOTE OK]",
+            Object:GetFullName()
+        )
 
-        ObjectState[obj].lastCollected =
-            position
-
-        task.wait(TeleportDelay)
-
-        Status.Text =
-            "WAITING FOR NEW POSITION"
-
-        Status.TextColor3 =
-            Color3.fromRGB(
-                255,
-                220,
-                100
-            )
+        return true
 
     end
-end)
 
---==================================================
--- INITIALIZE EXISTING OBJECTS
---
--- QUAN TRỌNG:
--- Object đã tồn tại khi execute sẽ KHÔNG bị TP.
--- Chỉ lưu position làm mốc.
---==================================================
-
-local function InitializeFolder(
-    folder,
-    folderName
-)
-
-    if not folder then
-        return 0
-    end
-
-    local count = 0
-
-    for _, obj in ipairs(
-        folder:GetChildren()
-    ) do
-
-        local position =
-            GetPosition(obj)
-
-        if position then
-
-            ObjectState[obj] = {
-                position = position,
-                lastCollected = position,
-                initialized = true
-            }
-
-            count += 1
-
-        end
-    end
-
-    print(
-        "[V5.4] Initialized",
-        folderName,
-        count,
-        "existing objects"
+    warn(
+        "[REMOTE ERROR]",
+        Error
     )
 
-    return count
+    return false
+
 end
 
-InitializeFolder(
-    VariantFolder,
-    "ActiveVariantTokenSpawns"
-)
-
-InitializeFolder(
-    ActiveFolder,
-    "ActiveCollectableObjects"
-)
-
-InitializeFolder(
-    CollectableFolder,
-    "CollectableObjects"
-)
-
 --==================================================
--- DETECT NEW / MOVED
+-- COLLECT
 --==================================================
 
-local function MonitorFolder(
-    folder,
-    folderName,
-    priority
+local function Collect(
+    Object,
+    Source
 )
 
-    if not folder then
-        warn(
-            "[V5.4] Missing folder:",
-            folderName
-        )
+    if not Running then
         return
     end
 
-    --==============================================
-    -- NEW OBJECT
-    --==============================================
+    if not Object then
+        return
+    end
 
-    folder.ChildAdded:Connect(
-        function(obj)
+    if
+        not Object:IsA("BasePart")
+        and
+        not Object:IsA("Model")
+    then
+        return
+    end
 
-            task.wait(0.03)
+    if Processing[Object] then
+        return
+    end
 
-            local position =
-                GetPosition(obj)
+    local Position =
+        GetPosition(Object)
 
-            if not position then
-                return
-            end
+    if not Position then
+        return
+    end
 
-            print(
-                "[V5.4] NEW OBJECT:",
-                obj:GetFullName(),
-                "|",
-                tostring(position)
-            )
+    Processing[Object] = true
 
-            ObjectState[obj] = {
-                position = position,
-                lastCollected = nil,
-                initialized = false
-            }
+    if Source == "Variant" then
 
-            QueueObject(
-                obj,
-                folderName,
-                position
-            )
+        VariantCount += 1
 
-        end
+    elseif Source == "Active" then
+
+        ActiveCount += 1
+
+    else
+
+        CollectCount += 1
+
+    end
+
+    UpdateInfo(
+        Source,
+        Object
     )
 
-    --==============================================
-    -- REMOVED
-    --==============================================
+    print(
+        "[FOUND]",
+        Source,
+        Object:GetFullName()
+    )
 
-    folder.ChildRemoved:Connect(
-        function(obj)
+    -- TP
+    if Teleport(Position) then
 
-            ObjectState[obj] = nil
-            QueueKeys[obj] = nil
+        print(
+            "[TP]",
+            Source,
+            Object.Name
+        )
 
-            print(
-                "[V5.4] REMOVED:",
-                obj.Name
-            )
+    end
+
+    task.wait(
+        COLLECT_DELAY
+    )
+
+    -- Remote
+    FireCollect(
+        Object
+    )
+
+    task.delay(
+        0.35,
+        function()
+
+            Processing[Object] = nil
 
         end
     )
@@ -889,26 +852,222 @@ local function MonitorFolder(
 end
 
 --==================================================
--- START MONITORS
+-- PROCESS VARIANT
 --==================================================
 
-MonitorFolder(
-    VariantFolder,
-    "ActiveVariantTokenSpawns",
-    1
+local function ProcessVariant(Object)
+
+    if not Running then
+        return
+    end
+
+    if
+        not Object:IsA("BasePart")
+        and
+        not Object:IsA("Model")
+    then
+        return
+    end
+
+    local Position =
+        GetPosition(Object)
+
+    if not Position then
+        return
+    end
+
+    print(
+        "[VARIANT]",
+        Object:GetFullName(),
+        Position
+    )
+
+    Collect(
+        Object,
+        "Variant"
+    )
+
+end
+
+--==================================================
+-- PROCESS ACTIVE
+--==================================================
+
+local function ProcessActive(Object)
+
+    if not Running then
+        return
+    end
+
+    if
+        not Object:IsA("BasePart")
+        and
+        not Object:IsA("Model")
+    then
+        return
+    end
+
+    Collect(
+        Object,
+        "Active"
+    )
+
+end
+
+--==================================================
+-- PROCESS COLLECTABLE
+--==================================================
+
+local function ProcessCollectable(Object)
+
+    if not Running then
+        return
+    end
+
+    if
+        not Object:IsA("BasePart")
+        and
+        not Object:IsA("Model")
+    then
+        return
+    end
+
+    Collect(
+        Object,
+        "Collectable"
+    )
+
+end
+
+--==================================================
+-- INITIAL SCAN
+--==================================================
+
+local function ScanFolder(
+    Folder,
+    Processor
 )
 
-MonitorFolder(
-    ActiveFolder,
-    "ActiveCollectableObjects",
-    2
-)
+    if not Folder then
+        return
+    end
 
-MonitorFolder(
-    CollectableFolder,
-    "CollectableObjects",
-    3
-)
+    for _, Object in ipairs(
+        Folder:GetChildren()
+    ) do
+
+        if
+            Object:IsA("BasePart")
+            or
+            Object:IsA("Model")
+        then
+
+            task.spawn(
+                Processor,
+                Object
+            )
+
+        end
+
+    end
+
+end
+
+--==================================================
+-- VARIANT NEW OBJECT
+--==================================================
+
+if VariantFolder then
+
+    VariantFolder.DescendantAdded:Connect(
+        function(Object)
+
+            task.wait()
+
+            if not Running then
+                return
+            end
+
+            if
+                Object:IsA("BasePart")
+                or
+                Object:IsA("Model")
+            then
+
+                ProcessVariant(
+                    Object
+                )
+
+            end
+
+        end
+    )
+
+end
+
+--==================================================
+-- ACTIVE NEW OBJECT
+--==================================================
+
+if ActiveFolder then
+
+    ActiveFolder.DescendantAdded:Connect(
+        function(Object)
+
+            task.wait()
+
+            if not Running then
+                return
+            end
+
+            if
+                Object:IsA("BasePart")
+                or
+                Object:IsA("Model")
+            then
+
+                ProcessActive(
+                    Object
+                )
+
+            end
+
+        end
+    )
+
+end
+
+--==================================================
+-- COLLECTABLE NEW OBJECT
+--==================================================
+
+if CollectFolder then
+
+    CollectFolder.DescendantAdded:Connect(
+        function(Object)
+
+            task.wait()
+
+            if not Running then
+                return
+            end
+
+            if
+                Object:IsA("BasePart")
+                or
+                Object:IsA("Model")
+            then
+
+                ProcessCollectable(
+                    Object
+                )
+
+            end
+
+        end
+    )
+
+end
 
 --==================================================
 -- POSITION MONITOR
@@ -916,308 +1075,336 @@ MonitorFolder(
 
 task.spawn(function()
 
-    while task.wait(CheckDelay) do
+    while Gui.Parent do
 
-        if not Enabled then
-            continue
-        end
+        if Running then
 
-        --==========================================
-        -- PRIORITY 1
-        -- VARIANT
-        --==========================================
+            --==========================================
+            -- VARIANT
+            --==========================================
 
-        if VariantFolder then
+            if VariantFolder then
 
-            for _, obj in ipairs(
-                VariantFolder:GetChildren()
-            ) do
+                for _, Object in ipairs(
+                    VariantFolder:GetDescendants()
+                ) do
 
-                local position =
-                    GetPosition(obj)
+                    if
+                        Object:IsA("BasePart")
+                        or
+                        Object:IsA("Model")
+                    then
 
-                if position then
+                        local Position =
+                            GetPosition(Object)
 
-                    local state =
-                        ObjectState[obj]
+                        if Position then
 
-                    if not state then
+                            local OldPosition =
+                                LastPositions[Object]
 
-                        ObjectState[obj] = {
-                            position = position,
-                            lastCollected = nil
-                        }
+                            if not OldPosition then
 
-                        QueueObject(
-                            obj,
-                            "ActiveVariantTokenSpawns",
-                            position
-                        )
+                                LastPositions[Object] =
+                                    Position
 
-                    else
-
-                        local old =
-                            state.position
-
-                        if old then
-
-                            local moved =
+                            elseif
                                 (
-                                    position -
-                                    old
+                                    Position -
+                                    OldPosition
                                 ).Magnitude
+                                >= MOVE_DISTANCE
+                            then
 
-                            if moved >=
-                                PositionThreshold then
+                                LastPositions[Object] =
+                                    Position
 
-                                state.position =
-                                    position
+                                print(
+                                    "[VARIANT MOVED]",
+                                    Object:GetFullName()
+                                )
 
-                                -- Chỉ queue nếu đây
-                                -- thực sự là vị trí mới.
+                                ProcessVariant(
+                                    Object
+                                )
 
-                                if
-                                    not state.lastCollected
-                                    or
-                                    (
-                                        position -
-                                        state.lastCollected
-                                    ).Magnitude >=
-                                    PositionThreshold
-                                then
-
-                                    QueueObject(
-                                        obj,
-                                        "ActiveVariantTokenSpawns",
-                                        position
-                                    )
-
-                                end
                             end
+
                         end
+
                     end
+
                 end
+
             end
-        end
 
-        --==========================================
-        -- PRIORITY 2
-        -- ACTIVE
-        --==========================================
+            --==========================================
+            -- ACTIVE
+            --==========================================
 
-        if ActiveFolder then
+            if ActiveFolder then
 
-            for _, obj in ipairs(
-                ActiveFolder:GetChildren()
-            ) do
+                for _, Object in ipairs(
+                    ActiveFolder:GetChildren()
+                ) do
 
-                local position =
-                    GetPosition(obj)
+                    if
+                        Object:IsA("BasePart")
+                        or
+                        Object:IsA("Model")
+                    then
 
-                if position then
+                        local Position =
+                            GetPosition(Object)
 
-                    local state =
-                        ObjectState[obj]
+                        if Position then
 
-                    if not state then
+                            local OldPosition =
+                                LastPositions[Object]
 
-                        ObjectState[obj] = {
-                            position = position,
-                            lastCollected = nil
-                        }
+                            if not OldPosition then
 
-                        QueueObject(
-                            obj,
-                            "ActiveCollectableObjects",
-                            position
-                        )
+                                LastPositions[Object] =
+                                    Position
 
-                    else
-
-                        local old =
-                            state.position
-
-                        if old then
-
-                            local moved =
+                            elseif
                                 (
-                                    position -
-                                    old
+                                    Position -
+                                    OldPosition
                                 ).Magnitude
+                                >= MOVE_DISTANCE
+                            then
 
-                            if moved >=
-                                PositionThreshold then
+                                LastPositions[Object] =
+                                    Position
 
-                                state.position =
-                                    position
+                                ProcessActive(
+                                    Object
+                                )
 
-                                if
-                                    not state.lastCollected
-                                    or
-                                    (
-                                        position -
-                                        state.lastCollected
-                                    ).Magnitude >=
-                                    PositionThreshold
-                                then
-
-                                    QueueObject(
-                                        obj,
-                                        "ActiveCollectableObjects",
-                                        position
-                                    )
-
-                                end
                             end
+
                         end
+
                     end
+
                 end
+
             end
-        end
 
-        --==========================================
-        -- PRIORITY 3
-        -- COLLECTABLE
-        --==========================================
+            --==========================================
+            -- COLLECTABLE
+            --==========================================
 
-        if CollectableFolder then
+            if CollectFolder then
 
-            for _, obj in ipairs(
-                CollectableFolder:GetChildren()
-            ) do
+                for _, Object in ipairs(
+                    CollectFolder:GetChildren()
+                ) do
 
-                local position =
-                    GetPosition(obj)
+                    if
+                        Object:IsA("BasePart")
+                        or
+                        Object:IsA("Model")
+                    then
 
-                if position then
+                        local Position =
+                            GetPosition(Object)
 
-                    local state =
-                        ObjectState[obj]
+                        if Position then
 
-                    if not state then
+                            local OldPosition =
+                                LastPositions[Object]
 
-                        ObjectState[obj] = {
-                            position = position,
-                            lastCollected = nil
-                        }
+                            if not OldPosition then
 
-                        QueueObject(
-                            obj,
-                            "CollectableObjects",
-                            position
-                        )
+                                LastPositions[Object] =
+                                    Position
 
-                    else
-
-                        local old =
-                            state.position
-
-                        if old then
-
-                            local moved =
+                            elseif
                                 (
-                                    position -
-                                    old
+                                    Position -
+                                    OldPosition
                                 ).Magnitude
+                                >= MOVE_DISTANCE
+                            then
 
-                            if moved >=
-                                PositionThreshold then
+                                LastPositions[Object] =
+                                    Position
 
-                                state.position =
-                                    position
+                                ProcessCollectable(
+                                    Object
+                                )
 
-                                if
-                                    not state.lastCollected
-                                    or
-                                    (
-                                        position -
-                                        state.lastCollected
-                                    ).Magnitude >=
-                                    PositionThreshold
-                                then
-
-                                    QueueObject(
-                                        obj,
-                                        "CollectableObjects",
-                                        position
-                                    )
-
-                                end
                             end
+
                         end
+
                     end
+
                 end
+
             end
+
         end
 
-    end
-end)
-
---==================================================
--- ANTI AFK
---==================================================
-
-Player.Idled:Connect(function()
-
-    if not AntiAFK then
-        return
-    end
-
-    pcall(function()
-
-        VirtualUser:CaptureController()
-
-        VirtualUser:ClickButton2(
-            Vector2.new(
-                math.random(300,700),
-                math.random(200,500)
-            )
+        task.wait(
+            SCAN_DELAY
         )
 
-    end)
-
-    print(
-        "[V5.4] Anti-AFK"
-    )
-
-end)
-
---==================================================
--- CACHE CLEANUP
---==================================================
-
-task.spawn(function()
-
-    while task.wait(5) do
-
-        for obj in pairs(ObjectState) do
-
-            if not obj
-                or not obj.Parent then
-
-                ObjectState[obj] = nil
-                QueueKeys[obj] = nil
-
-            end
-
-        end
-
     end
 
 end)
 
 --==================================================
--- READY
+-- START
 --==================================================
 
-Info.Text =
-    "Existing objects ignored"
+local function Start()
 
-print("======================================")
-print("V5.4 READY")
-print("======================================")
-print("Existing objects: IGNORED")
-print("New object: DETECTED")
-print("Position change: DETECTED")
-print("Same position: LOCKED")
-print("======================================")
+    Running = true
+
+    Status.Text =
+        "Status: RUNNING"
+
+    Status.TextColor3 =
+        Color3.fromRGB(
+            100,
+            255,
+            120
+        )
+
+    Toggle.Text =
+        "STOP"
+
+    Toggle.BackgroundColor3 =
+        Color3.fromRGB(
+            150,
+            55,
+            55
+        )
+
+    print("==============================")
+    print(" TOKEN COLLECTOR V5.1 STARTED")
+    print("==============================")
+
+    -- Scan existing objects
+    ScanFolder(
+        VariantFolder,
+        ProcessVariant
+    )
+
+    ScanFolder(
+        ActiveFolder,
+        ProcessActive
+    )
+
+    ScanFolder(
+        CollectFolder,
+        ProcessCollectable
+    )
+
+end
+
+--==================================================
+-- STOP
+--==================================================
+
+local function Stop()
+
+    Running = false
+
+    Status.Text =
+        "Status: STOPPED"
+
+    Status.TextColor3 =
+        Color3.fromRGB(
+            255,
+            100,
+            100
+        )
+
+    Toggle.Text =
+        "START"
+
+    Toggle.BackgroundColor3 =
+        Color3.fromRGB(
+            45,
+            120,
+            65
+        )
+
+    print(
+        "========== TOKEN STOP =========="
+    )
+
+end
+
+--==================================================
+-- TOGGLE
+--==================================================
+
+Toggle.MouseButton1Click:Connect(function()
+
+    if Running then
+        Stop()
+    else
+        Start()
+    end
+
+end)
+
+--==================================================
+-- CLOSE
+--==================================================
+
+Close.MouseButton1Click:Connect(function()
+
+    Running = false
+    AntiAFK = false
+
+    Gui:Destroy()
+
+end)
+
+--==================================================
+-- LOADED
+--==================================================
+
+print("==============================")
+print(" TOKEN COLLECTOR V5.1 LOADED")
+print("==============================")
+
+print(
+    "Variant:",
+    VariantFolder
+        and VariantFolder:GetFullName()
+        or "NOT FOUND"
+)
+
+print(
+    "Active:",
+    ActiveFolder
+        and ActiveFolder:GetFullName()
+        or "NOT FOUND"
+)
+
+print(
+    "Collect:",
+    CollectFolder
+        and CollectFolder:GetFullName()
+        or "NOT FOUND"
+)
+
+print(
+    "Remote:",
+    Remote
+        and Remote:GetFullName()
+        or "NOT FOUND"
+)
+
+print(
+    "Anti-AFK: ON"
+)
+
+print("==============================")
